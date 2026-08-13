@@ -8,3 +8,5 @@ env/
 .coverage
 htmlcov/
 .DS_Store
+ufuk_calisma_rehberi.md
+.idea/

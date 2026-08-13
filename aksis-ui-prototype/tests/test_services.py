@@ -36,3 +36,40 @@ def test_mock_service_flow():
         pass
         
     # (Running is async, so we'd need to mock sleep for a full test, but creation works)
+
+def test_mock_service_anomaly_detection_results():
+    service = MockAksisService()
+    
+    # Test Unlabeled Anomaly
+    req_unlabeled = ExperimentCreateRequest(
+        name="Unlabeled Anomaly Test",
+        dataset_id="ds_anom_unlabeled_01",
+        learning_type="unsupervised",
+        task="anomaly_detection",
+        model=ModelConfig(algorithm="Isolation Forest")
+    )
+    meta_unlabeled = service.create_experiment(req_unlabeled)
+    # Directly complete metadata for test assertions
+    meta_unlabeled.status = "completed"
+    
+    res_unlabeled = service.get_experiment_results(meta_unlabeled.id)
+    assert res_unlabeled.has_ground_truth is False
+    assert res_unlabeled.metrics.classification_metrics is None
+    assert res_unlabeled.metrics.anomaly_metrics == {}
+    assert "top_anomalies" in res_unlabeled.tables
+    
+    # Test Labeled Anomaly
+    req_labeled = ExperimentCreateRequest(
+        name="Labeled Anomaly Test",
+        dataset_id="ds_anom_labeled_01",
+        learning_type="unsupervised",
+        task="anomaly_detection",
+        model=ModelConfig(algorithm="Isolation Forest")
+    )
+    meta_labeled = service.create_experiment(req_labeled)
+    meta_labeled.status = "completed"
+    
+    res_labeled = service.get_experiment_results(meta_labeled.id)
+    assert res_labeled.has_ground_truth is True
+    assert res_labeled.metrics.anomaly_metrics.get("f1") is not None
+

@@ -59,6 +59,17 @@ try:
             preset = None
             st.info("Select a valid task first.")
             
+        with st.expander("Preprocessing Options (Optional)"):
+            prep_strats = capabilities.get("preprocessing_strategies", {})
+            missing_val = st.selectbox("Missing Value Strategy", ["none"] + prep_strats.get("missing_value", []))
+            encoding = st.selectbox("Encoding", ["none"] + prep_strats.get("encoding", []))
+            scaling = st.selectbox("Scaling", ["none"] + prep_strats.get("scaling", []))
+            
+        with st.expander("Validation Options (Optional)"):
+            val_options = capabilities.get("validation_options", ["holdout", "kfold"])
+            val_strategy = st.selectbox("Strategy", val_options)
+            test_size = st.slider("Test Size", 0.1, 0.5, 0.2, 0.05)
+            
         submitted = st.form_submit_button("Create Experiment")
         
         if submitted:
@@ -73,6 +84,15 @@ try:
                     "model": {
                         "algorithm": algorithm,
                         "preset": preset
+                    },
+                    "preprocessing": {
+                        "missing_value": None if missing_val == "none" else missing_val,
+                        "encoding": None if encoding == "none" else encoding,
+                        "scaling": None if scaling == "none" else scaling
+                    },
+                    "validation": {
+                        "strategy": val_strategy,
+                        "test_size": test_size
                     }
                 }
                 
