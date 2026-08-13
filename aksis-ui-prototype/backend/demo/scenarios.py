@@ -72,7 +72,7 @@ def generate_mock_result(
                 {"actual": "Normal", "predicted_anomaly": 45, "predicted_normal": 49455}
             ]
         else:
-            # Unlabeled anomaly
+            # Unlabeled anomaly MUST NOT expose accuracy/f1
             metrics.anomaly_metrics = {}
             
         visualizations.append(
@@ -83,8 +83,9 @@ def generate_mock_result(
             )
         )
         tables["top_anomalies"] = [
-            {"id": "A123", "score": 0.99},
-            {"id": "B456", "score": 0.98}
+            {"id": "A123", "prediction": -1, "anomaly_score": 0.99},
+            {"id": "B456", "prediction": -1, "anomaly_score": 0.98},
+            {"id": "C789", "prediction": 1, "anomaly_score": 0.12}
         ]
 
     return ExperimentResultResponse(

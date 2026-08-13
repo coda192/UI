@@ -1,14 +1,14 @@
-# AKSIS UI Prototype - Phase 1
+# AKSIS UI Prototype - Phase 2
 
 This is the standalone prototype interface for the proprietary AKSIS Machine Learning framework.
 It demonstrates the architecture and provides a stable API contract (via FastAPI) to decouple the UI (Streamlit) from the underlying ML backend execution.
 
 ## Project Architecture
 
-1. **Frontend (Streamlit):** Located in `frontend/`. Responsible ONLY for presentation. Communicates with the backend exclusively via HTTP.
+1. **Frontend (Streamlit):** Located in `frontend/`. A multi-page UI application using `st.navigation`. Responsible ONLY for presentation. Communicates with the backend exclusively via HTTP.
 2. **Backend (FastAPI):** Located in `backend/`. Exposes the stable REST API (`/api/v1`).
 3. **Services:**
-   - **Mock Mode (`MockAksisService`):** Uses an in-memory store and fixtures to provide deterministic demo data for local UI development.
+   - **Mock Mode (`MockAksisService`):** Uses an in-memory store and fixtures to provide deterministic demo data for local UI development. Simulates full workflows including artifacts and inference.
    - **AKSIS Mode (`RealAksisService`):** An adapter layer. Contains placeholders that translate API schemas into actual AKSIS `ExperimentConfig` and calls the real AKSIS pipeline.
 
 ## Getting Started

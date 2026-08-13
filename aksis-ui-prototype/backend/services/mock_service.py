@@ -113,8 +113,28 @@ class MockAksisService(AksisService):
         return artifacts
         
     def run_inference(self, req: InferenceRequest) -> InferenceResponse:
+        # Very simple mock inference logic based on dataset type.
+        dataset = self.get_dataset(req.dataset_id)
+        
+        predictions = []
+        if "anomaly_detection" in dataset.compatible_tasks:
+            predictions = [
+                {"id": 1, "prediction": 1, "anomaly_score": 0.05},
+                {"id": 2, "prediction": -1, "anomaly_score": 0.95}
+            ]
+        elif "classification" in dataset.compatible_tasks:
+            predictions = [
+                {"id": 1, "prediction": 1, "probability": 0.88},
+                {"id": 2, "prediction": 0, "probability": 0.12}
+            ]
+        else:
+            predictions = [
+                {"id": 1, "prediction": 150000},
+                {"id": 2, "prediction": 210000}
+            ]
+            
         return InferenceResponse(
             status="completed",
-            predictions_preview=[{"id": 1, "pred": 0.5}],
-            total_predictions=1
+            predictions_preview=predictions,
+            total_predictions=len(predictions)
         )

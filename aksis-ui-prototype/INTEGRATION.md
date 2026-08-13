@@ -2,6 +2,7 @@
 
 This document details exactly what must be connected on the company computer to make the prototype work with the real AKSIS framework.
 Search the codebase for `AKSIS_INTEGRATION_POINT` to locate these placeholders.
+Note: Phase 2 extends the UI to cover Artifacts and Inference, the placeholders for these are also included.
 
 All markers are located in `backend/services/aksis_service.py`.
 
