@@ -4,7 +4,9 @@ from typing import List, Dict, Any, Optional
 class VisualizationData(BaseModel):
     type: str
     title: str
-    data: Dict[str, Any] # Flexible inner data for plotly/charts
+    data: Dict[str, Any] = {} # Flexible inner data for plotly/charts
+    html_content: Optional[str] = None # Raw interactive Plotly HTML string
+    file_path: Optional[str] = None # Relative path in outputs directory
     metadata: Dict[str, Any] = {}
 
 class ArtifactReference(BaseModel):

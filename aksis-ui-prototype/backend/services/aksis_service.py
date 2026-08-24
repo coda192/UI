@@ -55,9 +55,20 @@ class RealAksisService(AksisService):
         raise NotImplementedError("Real AKSIS integration has not been configured.")
         
     def get_experiment_results(self, experiment_id: str) -> ExperimentResultResponse:
-        # AKSIS_INTEGRATION_POINT
-        # Fetch typed ML evaluation outputs from wherever AKSIS stores them.
-        # Translate to ExperimentResultResponse API schema.
+        # AKSIS_INTEGRATION_POINT: outputs/ klasörünü tara ve sonuçları çek
+        # Örnek Kullanım:
+        # output_dir = os.path.join("outputs", experiment_id)
+        # 1. Metrikleri oku (metrics.json)
+        # 2. HTML Plotlarını tara ve oku:
+        #    visualizations = []
+        #    for file in os.listdir(output_dir):
+        #        if file.endswith(".html"):
+        #            with open(os.path.join(output_dir, file), "r", encoding="utf-8") as f:
+        #                visualizations.append(VisualizationData(
+        #                    type=file.replace(".html", ""),
+        #                    title=file.replace(".html", "").replace("_", " ").title(),
+        #                    html_content=f.read()
+        #                ))
         raise NotImplementedError("Real AKSIS integration has not been configured.")
         
     def list_artifacts(self) -> List[ArtifactMetadata]:

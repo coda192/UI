@@ -71,16 +71,35 @@ All markers are located in `backend/services/aksis_service.py`.
 ## ☑ get_experiment_results
 - **File Path:** `backend/services/aksis_service.py`
 - **Class/Function:** `RealAksisService.get_experiment_results`
-- **Purpose:** Fetch typed ML evaluation outputs. Connect this method to however AKSIS currently stores or exposes results.
+- **Purpose:** Fetch typed ML evaluation outputs from disk (`outputs/{experiment_id}/`). Reads `metrics.json` and scans all interactive Plotly `*.html` files.
 - **Input Schema:** `experiment_id`
 - **Expected Output Schema:** `ExperimentResultResponse`
-- **Likely AKSIS component:** Artifact/Result store parsing.
+- **Likely AKSIS component:** Output directory scanner.
 - **Pseudo-code:**
   ```python
-  status = aksis.runner.get_status(experiment_id)
-  if status == "completed":
-      metrics = aksis.store.get_metrics(experiment_id)
-      return ExperimentResultResponse(status=status, metrics=metrics, ...)
+  output_dir = os.path.join("outputs", experiment_id)
+  
+  # 1. Metrikleri JSON'dan oku
+  with open(os.path.join(output_dir, "metrics.json")) as f:
+      metrics = json.load(f)
+      
+  # 2. *.html Plotly grafiklerini tara ve oku (UI'da interaktif açılır)
+  visualizations = []
+  for fname in os.listdir(output_dir):
+      if fname.endswith(".html"):
+          with open(os.path.join(output_dir, fname), "r", encoding="utf-8") as f:
+              visualizations.append(VisualizationData(
+                  type=fname.replace(".html", ""),
+                  title=fname.replace(".html", "").replace("_", " ").title(),
+                  html_content=f.read()
+              ))
+              
+  return ExperimentResultResponse(
+      experiment_id=experiment_id,
+      status="completed",
+      metrics=MetricsData(**metrics),
+      visualizations=visualizations
+  )
   ```
 
 ## ☑ list_artifacts (Optional)
