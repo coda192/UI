@@ -6,27 +6,29 @@ CAPABILITIES = CapabilityResponse(
         "supervised": ["classification", "regression"],
         "unsupervised": ["anomaly_detection"]
     },
-    modes=["local"],
+    modes=["train", "tune", "predict"],
     algorithms={
-        "classification": ["Logistic Regression", "Random Forest", "HistGradientBoosting", "SVC", "KNN", "CatBoost", "XGBoost"],
-        "regression": ["Ridge", "SVR", "Random Forest", "HistGradientBoosting", "XGBoost"],
-        "anomaly_detection": ["Isolation Forest", "Local Outlier Factor", "One-Class SVM", "Elliptic Envelope"]
+        "classification": ["logreg", "random_forest_c", "hgb_c", "svc", "knn", "catboost", "xgb_c"],
+        "regression": ["ridge", "svr", "random_forest_r", "xgb", "hgb_r"],
+        "anomaly_detection": ["isolation_forest", "lof", "one_class_svm", "elliptic_envelope"]
     },
-    model_presets=["fast", "accurate", "interpretable"],
+    model_presets=["baseline", "fast", "strong", "custom"],
     preprocessing_strategies={
-        "missing_value": ["mean", "median", "most_frequent", "drop"],
-        "encoding": ["onehot", "label", "target"],
+        "missing_value": ["mean", "median", "most_frequent", "constant", "drop"],
+        "encoding": ["onehot", "frequency", "hashing"],
         "scaling": ["standard", "minmax", "robust"]
     },
     validation_options=["holdout", "kfold", "stratified_kfold"],
     tuning_options={
-        "sampler": ["tpe", "random", "grid"],
-        "pruner": ["median", "hyperband"]
+        "sampler": ["tpe", "random"],
+        "pruner": ["none", "median", "sha"],
+        "space_preset": ["baseline", "deep"],
+        "aggregation": ["mean", "median"]
     },
     scoring_options={
-        "classification": ["accuracy", "f1", "precision", "recall", "roc_auc"],
-        "regression": ["rmse", "mae", "r2"],
-        "anomaly_detection": ["f1", "precision", "recall"] # Only applicable if has_ground_truth=True
+        "classification": ["f1_macro", "accuracy", "balanced_accuracy"],
+        "regression": ["neg_mean_squared_error", "r2", "rmse", "mae"],
+        "anomaly_detection": ["f1_score", "accuracy", "anomaly_count", "anomaly_ratio"]
     },
     evaluation_capabilities=["confusion_matrix", "feature_importance", "residuals", "anomaly_distribution"],
     visualization_capabilities=["roc_curve", "pr_curve", "residual_plot", "feature_importance_plot", "anomaly_score_histogram"]
