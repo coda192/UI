@@ -17,6 +17,7 @@ def test_capabilities():
     assert "modes" in data
     assert "train" in data["modes"]
     assert "tune" in data["modes"]
+    assert "predict" in data["modes"]
     assert "algorithms" in data
     assert "classification" in data["algorithms"]
     assert "regression" in data["algorithms"]
@@ -54,6 +55,34 @@ def test_get_single_dataset():
     assert data["id"] == "ds_class_01"
     assert data["display_name"] == "Müşteri Kayıp Analizi (Customer Churn)"
     assert "description" in data and len(data["description"]) > 0
+
+def test_create_experiment_default_mode():
+    # Omitting 'mode' in payload must default to 'train', not 'local'
+    from backend.schemas import ExperimentCreateRequest, ModelConfig
+    model_req = ExperimentCreateRequest(
+        name="Test_Default_Mode",
+        dataset_id="ds_class_01",
+        learning_type="supervised",
+        task="classification",
+        model=ModelConfig(algorithm="xgb_c")
+    )
+    assert model_req.mode == "train"
+
+    req = {
+        "name": "Test_Default_API",
+        "dataset_id": "ds_class_01",
+        "learning_type": "supervised",
+        "task": "classification",
+        "model": {
+            "algorithm": "xgb_c",
+            "preset": "fast"
+        }
+    }
+    response = client.post("/api/v1/experiments", json=req)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "configured"
+    assert data["name"] == "Test_Default_API"
 
 def test_create_experiment_train_mode():
     req = {

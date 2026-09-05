@@ -142,39 +142,47 @@ with st.form("experiment_config_form"):
     with col_mode1:
         # API'den gelen modes içinden New Experiment akışına uygun olanları filtrele (train, tune)
         # predict modu arayüzde 'Modeller & Toplu Tahmin' sayfasında özel olarak yönetilir.
-        api_modes = capabilities.get("modes", ["train", "tune"])
-        workflow_modes = [m for m in api_modes if m in ["train", "tune"]]
+        api_modes = capabilities.get("modes", [])
+        workflow_modes = [m for m in api_modes if m in ("train", "tune")]
         if not workflow_modes:
-            workflow_modes = ["train", "tune"]
-            
-        selected_mode = st.selectbox(
-            "🚀 Çalışma Modu (Mode)",
-            options=workflow_modes,
-            format_func=lambda m: MODE_NAMES_TR.get(m, m),
-            help="'train': Standart model eğitimi | 'tune': Optuna ile otomatik hiperparametre optimizasyonu"
-        )
+            st.warning("Bu iş akışı için geçerli bir çalıştırma modu (train/tune) bulunamadı.")
+            selected_mode = None
+        else:
+            selected_mode = st.selectbox(
+                "🚀 Çalışma Modu (Mode)",
+                options=workflow_modes,
+                format_func=lambda m: MODE_NAMES_TR.get(m, m),
+                help="'train': Standart model eğitimi | 'tune': Optuna ile otomatik hiperparametre optimizasyonu"
+            )
         
     with col_mode2:
-        api_learning_types = capabilities.get("learning_types", ["supervised", "unsupervised"])
-        learning_type = st.selectbox(
-            "🧠 Öğrenme Türü (Learning Type)", 
-            options=api_learning_types,
-            format_func=lambda x: LEARNING_TYPES_TR.get(x, x)
-        )
+        api_learning_types = capabilities.get("learning_types", [])
+        if not api_learning_types:
+            st.warning("Sistemde kayıtlı öğrenme türü bulunamadı.")
+            learning_type = None
+        else:
+            learning_type = st.selectbox(
+                "🧠 Öğrenme Türü (Learning Type)", 
+                options=api_learning_types,
+                format_func=lambda x: LEARNING_TYPES_TR.get(x, x)
+            )
         
     # Görev Seçimi (Learning Type ve Dataset Uyumuna Göre Filtrelenir)
-    tasks_by_learning = capabilities.get("tasks", {}).get(learning_type, [])
-    valid_tasks = [t for t in tasks_by_learning if t in compatible_tasks]
-    
-    if not valid_tasks:
-        st.warning(f"Seçilen veri seti '{learning_type}' altında doğrudan uyumlu görev içermiyor.")
-        task = None
+    if learning_type:
+        tasks_by_learning = capabilities.get("tasks", {}).get(learning_type, [])
+        valid_tasks = [t for t in tasks_by_learning if t in compatible_tasks]
+        
+        if not valid_tasks:
+            st.warning(f"Seçilen veri seti '{learning_type}' altında doğrudan uyumlu görev içermiyor.")
+            task = None
+        else:
+            task = st.selectbox(
+                "🎯 Görev (Task)", 
+                options=valid_tasks,
+                format_func=lambda x: TASK_NAMES_TR.get(x, x)
+            )
     else:
-        task = st.selectbox(
-            "🎯 Görev (Task)", 
-            options=valid_tasks,
-            format_func=lambda x: TASK_NAMES_TR.get(x, x)
-        )
+        task = None
 
     st.divider()
 
@@ -186,7 +194,7 @@ with st.form("experiment_config_form"):
     if task:
         # Algoritmaları doğrudan API capabilities içinden çek
         available_algos = capabilities.get("algorithms", {}).get(task, [])
-        api_presets = capabilities.get("model_presets", ["fast", "strong", "baseline"])
+        api_presets = capabilities.get("model_presets", [])
         
         if not available_algos:
             st.warning("Bu görev için API üzerinde kayıtlı algoritma bulunamadı.")
@@ -202,11 +210,14 @@ with st.form("experiment_config_form"):
                     help="AKSIS Registry tarafından sunulan algoritmalar"
                 )
             with col_m2:
-                preset = st.selectbox(
-                    "Model Hazır Ayarı (Model Preset)", 
-                    options=api_presets,
-                    format_func=lambda x: PRESET_NAMES_TR.get(x, x)
-                )
+                if api_presets:
+                    preset = st.selectbox(
+                        "Model Hazır Ayarı (Model Preset)", 
+                        options=api_presets,
+                        format_func=lambda x: PRESET_NAMES_TR.get(x, x)
+                    )
+                else:
+                    preset = None
                 
             # Seçilen model için anlık karar destek rehberi
             if algorithm:
@@ -226,10 +237,10 @@ with st.form("experiment_config_form"):
                         st.caption(f"**✅ Güçlü Yönler:** {', '.join(strengths) if isinstance(strengths, list) else strengths}")
                     if limitations:
                         st.caption(f"**⚠️ Dikkat Edilmesi Gerekenler:** {', '.join(limitations) if isinstance(limitations, list) else limitations}")
-        else:
-            algorithm = None
-            preset = None
-            st.info("Lütfen önce geçerli bir görev seçin.")
+    else:
+        algorithm = None
+        preset = None
+        st.info("Lütfen önce geçerli bir görev seçin.")
 
     # ==============================================================================
     # 5. HİPERPARAMETRE OPTİMİZASYONU (Tuning - Yalnızca Mode='tune' İken Açılır)
@@ -246,33 +257,41 @@ with st.form("experiment_config_form"):
         st.caption("Mode='tune' seçildiği için Optuna arama uzayı ve deneme parametreleri aktif edildi.")
         
         tuning_opts = capabilities.get("tuning_options", {})
-        samplers = tuning_opts.get("sampler", ["tpe", "random"])
-        pruners = tuning_opts.get("pruner", ["none", "median", "sha"])
-        spaces = tuning_opts.get("space_preset", ["baseline", "deep"])
+        samplers = tuning_opts.get("sampler", [])
+        pruners = tuning_opts.get("pruner", [])
+        spaces = tuning_opts.get("space_preset", [])
         
         scoring_opts = capabilities.get("scoring_options", {}).get(task, [])
-        if not scoring_opts:
-            scoring_opts = ["f1_macro", "accuracy", "rmse", "r2"]
             
         t_col1, t_col2 = st.columns(2)
         with t_col1:
-            tuning_sampler = st.selectbox(
-                "Arama Örnekleyicisi (Sampler)",
-                options=samplers,
-                format_func=lambda s: TUNING_SAMPLER_TR.get(s, s)
-            )
+            if samplers:
+                tuning_sampler = st.selectbox(
+                    "Arama Örnekleyicisi (Sampler)",
+                    options=samplers,
+                    format_func=lambda s: TUNING_SAMPLER_TR.get(s, s)
+                )
+            else:
+                tuning_sampler = None
             tuning_trials = st.slider("Deneme Sayısı (n_trials)", min_value=3, max_value=100, value=10, step=1)
             
         with t_col2:
-            tuning_pruner = st.selectbox(
-                "Budayıcı (Pruner)",
-                options=pruners,
-                format_func=lambda p: TUNING_PRUNER_TR.get(p, p)
-            )
-            tuning_scoring = st.selectbox(
-                "Optimizasyon Hedef Skoru (Scoring Metric)",
-                options=scoring_opts
-            )
+            if pruners:
+                tuning_pruner = st.selectbox(
+                    "Budayıcı (Pruner)",
+                    options=pruners,
+                    format_func=lambda p: TUNING_PRUNER_TR.get(p, p)
+                )
+            else:
+                tuning_pruner = None
+                
+            if scoring_opts:
+                tuning_scoring = st.selectbox(
+                    "Optimizasyon Hedef Skoru (Scoring Metric)",
+                    options=scoring_opts
+                )
+            else:
+                tuning_scoring = None
 
     st.divider()
 
@@ -282,9 +301,9 @@ with st.form("experiment_config_form"):
     with st.expander("🛠️ Önişleme Seçenekleri (PreprocessConfig)"):
         prep_strats = capabilities.get("preprocessing_strategies", {})
         
-        missing_options = ["none"] + prep_strats.get("missing_value", ["mean", "median", "most_frequent", "constant", "drop"])
-        encoding_options = ["none"] + prep_strats.get("encoding", ["onehot", "frequency", "hashing"])
-        scaling_options = ["none"] + prep_strats.get("scaling", ["standard", "minmax", "robust"])
+        missing_options = ["none"] + prep_strats.get("missing_value", [])
+        encoding_options = ["none"] + prep_strats.get("encoding", [])
+        scaling_options = ["none"] + prep_strats.get("scaling", [])
         
         c_p1, c_p2, c_p3 = st.columns(3)
         with c_p1:
@@ -307,15 +326,19 @@ with st.form("experiment_config_form"):
             )
         
     with st.expander("📐 Doğrulama Seçenekleri (Validation / DataSplitConfig)"):
-        val_options = capabilities.get("validation_options", ["holdout", "kfold", "stratified_kfold"])
+        val_options = capabilities.get("validation_options", [])
         
         c_v1, c_v2 = st.columns(2)
         with c_v1:
-            val_strategy = st.selectbox(
-                "Doğrulama / Bölümleme Yöntemi", 
-                val_options,
-                format_func=lambda x: VAL_TR.get(x, x)
-            )
+            if val_options:
+                val_strategy = st.selectbox(
+                    "Doğrulama / Bölümleme Yöntemi", 
+                    val_options,
+                    format_func=lambda x: VAL_TR.get(x, x)
+                )
+            else:
+                st.warning("Doğrulama yöntemi bulunamadı.")
+                val_strategy = None
         with c_v2:
             test_size = st.slider("Test Kümesi Oranı (test_size)", 0.1, 0.5, 0.2, 0.05)
 

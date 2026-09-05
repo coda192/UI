@@ -262,7 +262,7 @@ CAPABILITIES = CapabilityResponse(
         "supervised": ["classification", "regression"],
         "unsupervised": ["anomaly_detection"]
     },
-    modes=["train", "tune"],
+    modes=["train", "tune", "predict"],
     algorithms={
         "classification": ["logreg", "random_forest_c", "hgb_c", "svc", "knn", "catboost", "xgb_c"],
         "regression": ["ridge", "svr", "random_forest_r", "xgb", "hgb_r"],

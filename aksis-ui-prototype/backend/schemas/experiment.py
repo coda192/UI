@@ -36,7 +36,7 @@ class ExperimentCreateRequest(BaseModel):
     dataset_id: str
     learning_type: str
     task: str
-    mode: str = "local"
+    mode: str = "train"
     model: ModelConfig
     preprocessing: Optional[PreprocessingConfig] = None
     validation: Optional[ValidationConfig] = None
