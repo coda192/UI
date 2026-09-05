@@ -1,6 +1,6 @@
 import streamlit as st
 from api.client import AksisAPIError
-from utils.model_guidance import get_model_guidance, get_display_name
+from utils.model_guidance import get_algorithm_metadata, get_algorithm_display_name
 
 st.title("⚙️ Deney Yapılandırma (Experiment Visual Editor)")
 st.caption("AKSIS Çerçevesi için yeni bir makine öğrenmesi veya optimizasyon deneyi tanımlayın.")
@@ -198,7 +198,7 @@ with st.form("experiment_config_form"):
                 algorithm = st.selectbox(
                     "Algoritma", 
                     options=available_algos,
-                    format_func=get_display_name,
+                    format_func=lambda x: get_algorithm_display_name(x, capabilities),
                     help="AKSIS Registry tarafından sunulan algoritmalar"
                 )
             with col_m2:
@@ -210,16 +210,26 @@ with st.form("experiment_config_form"):
                 
             # Seçilen model için anlık karar destek rehberi
             if algorithm:
-                guidance = get_model_guidance(algorithm)
+                algo_meta = get_algorithm_metadata(algorithm, capabilities)
+                display_title = algo_meta.get("display_name") or algorithm
+                description = algo_meta.get("description", "Model açıklaması sağlanmamış.")
+                strengths = algo_meta.get("strengths", [])
+                limitations = algo_meta.get("limitations", [])
+                best_for = algo_meta.get("best_for", [])
+                
                 with st.container(border=True):
-                    st.markdown(f"💡 **Model Karar Destek Rehberi: `{algorithm}`**")
-                    st.markdown(f"**🎯 En Uygun Senaryo:** {guidance['best_for']}")
-                    st.caption(f"**✅ Güçlü Yönler:** {guidance['pros']}")
-                    st.caption(f"**⚠️ Dikkat Edilmesi Gerekenler:** {guidance['cons']}")
-    else:
-        algorithm = None
-        preset = None
-        st.info("Lütfen önce geçerli bir görev seçin.")
+                    st.markdown(f"💡 **Model Bilgi Rehberi: `{algorithm}`** ({display_title})")
+                    st.write(description)
+                    if best_for:
+                        st.markdown(f"**🎯 En Uygun Senaryo:** {', '.join(best_for) if isinstance(best_for, list) else best_for}")
+                    if strengths:
+                        st.caption(f"**✅ Güçlü Yönler:** {', '.join(strengths) if isinstance(strengths, list) else strengths}")
+                    if limitations:
+                        st.caption(f"**⚠️ Dikkat Edilmesi Gerekenler:** {', '.join(limitations) if isinstance(limitations, list) else limitations}")
+        else:
+            algorithm = None
+            preset = None
+            st.info("Lütfen önce geçerli bir görev seçin.")
 
     # ==============================================================================
     # 5. HİPERPARAMETRE OPTİMİZASYONU (Tuning - Yalnızca Mode='tune' İken Açılır)

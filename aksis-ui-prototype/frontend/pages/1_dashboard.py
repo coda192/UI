@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 from api.client import AksisAPIError
-from utils.model_guidance import get_model_guidance, get_display_name
+from utils.model_guidance import get_algorithm_metadata, get_algorithm_display_name
 
 st.title("📊 Sistem Özeti & Registry Kataloğu")
 st.caption("AKSIS bünyesinde kayıtlı makine öğrenmesi algoritmaları, veri setleri, önişleme yetenekleri ve deney geçmişi.")
@@ -137,16 +137,29 @@ if task_keys:
             # Algoritmaları 2 sütunlu kartlar halinde listele
             cols = st.columns(2)
             for i, algo in enumerate(algos):
-                display_title = get_display_name(algo)
-                guidance = get_model_guidance(algo)
+                algo_meta = get_algorithm_metadata(algo, capabilities)
+                display_title = algo_meta.get("display_name") or algo
+                description = algo_meta.get("description", "Model açıklaması sağlanmamış.")
+                strengths = algo_meta.get("strengths", [])
+                limitations = algo_meta.get("limitations", [])
+                best_for = algo_meta.get("best_for", [])
+                
                 with cols[i % 2]:
                     with st.container(border=True):
                         st.markdown(f"### ⚡ `{algo}`")
-                        st.caption(f"**Tanım:** {display_title}")
-                        st.markdown(f"**🎯 En Uygun Senaryo:** {guidance['best_for']}")
-                        with st.expander("🔍 Güçlü ve Zayıf Yönleri Gör", expanded=False):
-                            st.markdown(f"**✅ Güçlü Yönler:**\n{guidance['pros']}")
-                            st.markdown(f"**⚠️ Dikkat Edilmesi Gerekenler:**\n{guidance['cons']}")
+                        st.markdown(f"**{display_title}**")
+                        st.write(description)
+                        if best_for:
+                            st.markdown(f"**🎯 En Uygun Senaryo:** {', '.join(best_for) if isinstance(best_for, list) else best_for}")
+                        with st.expander("🔍 Güçlü ve Dikkat Edilmesi Gereken Yönler", expanded=False):
+                            if strengths:
+                                st.markdown("**✅ Güçlü Yönler:**")
+                                for s in strengths:
+                                    st.write(f"- {s}")
+                            if limitations:
+                                st.markdown("**⚠️ Dikkat Edilmesi Gerekenler:**")
+                                for lim in limitations:
+                                    st.write(f"- {lim}")
 else:
     st.info("Kayıtlı algoritma bulunamadı.")
 

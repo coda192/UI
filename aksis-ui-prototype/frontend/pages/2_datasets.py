@@ -40,6 +40,11 @@ try:
         
         ds = client.get_dataset(selected_id)
         
+        if ds.get("display_name"):
+            st.subheader(f"📌 {ds['display_name']}")
+        if ds.get("description"):
+            st.markdown(f"*{ds['description']}*")
+            
         col1, col2, col3 = st.columns(3)
         col1.metric("Satır Sayısı", f"{ds.get('row_count', 0):,}")
         col2.metric("Sütun Sayısı", ds.get("column_count"))

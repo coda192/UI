@@ -1,4 +1,4 @@
-from .capability import CapabilityResponse
+from .capability import CapabilityResponse, AlgorithmMetadata
 from .dataset import DatasetMetadata, ColumnMetadata
 from .experiment import ExperimentCreateRequest, ExperimentMetadata, ModelConfig
 from .result import ExperimentResultResponse, VisualizationData, MetricsData, ArtifactReference
@@ -7,6 +7,7 @@ from .inference import InferenceRequest, InferenceResponse
 
 __all__ = [
     "CapabilityResponse",
+    "AlgorithmMetadata",
     "DatasetMetadata",
     "ColumnMetadata",
     "ExperimentCreateRequest",

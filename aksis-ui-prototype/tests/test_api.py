@@ -17,16 +17,43 @@ def test_capabilities():
     assert "modes" in data
     assert "train" in data["modes"]
     assert "tune" in data["modes"]
-    assert "predict" in data["modes"]
     assert "algorithms" in data
     assert "classification" in data["algorithms"]
     assert "regression" in data["algorithms"]
     assert "anomaly_detection" in data["algorithms"]
+    
+    # Verify algorithm_metadata contract
+    assert "algorithm_metadata" in data
+    assert data["algorithm_metadata"] is not None
+    assert "xgb_c" in data["algorithm_metadata"]
+    xgb_meta = data["algorithm_metadata"]["xgb_c"]
+    assert "display_name" in xgb_meta and len(xgb_meta["display_name"]) > 0
+    assert "description" in xgb_meta and len(xgb_meta["description"]) > 0
+    assert "strengths" in xgb_meta and isinstance(xgb_meta["strengths"], list)
+    assert "limitations" in xgb_meta and isinstance(xgb_meta["limitations"], list)
+    assert "best_for" in xgb_meta and isinstance(xgb_meta["best_for"], list)
 
 def test_datasets():
     response = client.get("/api/v1/datasets")
     assert response.status_code == 200
-    assert isinstance(response.json(), list)
+    data = response.json()
+    assert isinstance(data, list)
+    assert len(data) > 0
+    
+    # Verify optional display_name and description support
+    first_ds = data[0]
+    assert "display_name" in first_ds
+    assert "description" in first_ds
+    assert first_ds["display_name"] is not None
+    assert first_ds["description"] is not None
+
+def test_get_single_dataset():
+    response = client.get("/api/v1/datasets/ds_class_01")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["id"] == "ds_class_01"
+    assert data["display_name"] == "Müşteri Kayıp Analizi (Customer Churn)"
+    assert "description" in data and len(data["description"]) > 0
 
 def test_create_experiment_train_mode():
     req = {

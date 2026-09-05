@@ -15,3 +15,5 @@ class DatasetMetadata(BaseModel):
     target: Optional[str] = None
     identifier_columns: List[str] = []
     compatible_tasks: List[str] = []
+    display_name: Optional[str] = None
+    description: Optional[str] = None
