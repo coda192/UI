@@ -232,7 +232,9 @@ with st.form("experiment_config_form"):
                 best_for = algo_meta.get("best_for", [])
                 
                 with st.container(border=True):
-                    st.markdown(f"💡 **Model Bilgi Rehberi: `{algorithm}`** ({display_title})")
+                    st.markdown(f"### ⚡ {display_title}")
+                    if display_title != algorithm:
+                        st.caption(f"`{algorithm}`")
                     st.write(description)
                     if best_for:
                         st.markdown(f"**🎯 En Uygun Senaryo:** {', '.join(best_for) if isinstance(best_for, list) else best_for}")

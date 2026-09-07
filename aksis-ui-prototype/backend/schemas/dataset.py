@@ -7,13 +7,19 @@ class ColumnMetadata(BaseModel):
     missing_count: int
 
 class DatasetMetadata(BaseModel):
+    # DataSpec Static Metadata
     id: str
-    name: str
-    row_count: int
-    column_count: int
-    columns: List[ColumnMetadata]
-    target: Optional[str] = None
-    identifier_columns: List[str] = []
-    compatible_tasks: List[str] = []
+    name: Optional[str] = None
     display_name: Optional[str] = None
     description: Optional[str] = None
+    source: Optional[str] = None
+    local_data: Optional[bool] = None
+    target: Optional[str] = None
+    columns_to_use: Optional[List[str]] = None
+
+    # Runtime / Computed Data Statistics (Optional if analysis hasn't run)
+    row_count: Optional[int] = None
+    column_count: Optional[int] = None
+    columns: List[ColumnMetadata] = []
+    identifier_columns: List[str] = []
+    compatible_tasks: List[str] = []

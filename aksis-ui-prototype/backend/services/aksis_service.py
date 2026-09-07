@@ -85,21 +85,81 @@ class RealAksisService(AksisService):
             visualization_capabilities=["roc_curve", "pr_curve", "residual_plot", "feature_importance_plot", "anomaly_score_histogram"]
         )
 
+    @staticmethod
+    def _map_dataspec_to_metadata(spec: Any) -> DatasetMetadata:
+        """
+        AKSIS DataSpec nesnesini DatasetMetadata şemasına dönüştürür.
+        Yalnızca API/UI için gerekli alanları eşler.
+        Veritabanı parolaları, kullanıcı bilgileri, host/port, data_query ve iç SQL
+        bağlantı detayları KESİNLİKLE dışarıya sızdırılmaz.
+        """
+        if isinstance(spec, dict):
+            spec_id = spec.get("id", "")
+            display_name = spec.get("display_name")
+            description = spec.get("description")
+            source = spec.get("source")
+            local_data = spec.get("local_data")
+            target = spec.get("target")
+            columns_to_use = spec.get("columns_to_use")
+            row_count = spec.get("row_count")
+            column_count = spec.get("column_count")
+            columns = spec.get("columns", [])
+            identifier_columns = spec.get("identifier_columns", [])
+            compatible_tasks = spec.get("compatible_tasks", [])
+        else:
+            spec_id = getattr(spec, "id", "")
+            display_name = getattr(spec, "display_name", None)
+            description = getattr(spec, "description", None)
+            source = getattr(spec, "source", None)
+            local_data = getattr(spec, "local_data", None)
+            target = getattr(spec, "target", None)
+            columns_to_use = getattr(spec, "columns_to_use", None)
+            row_count = getattr(spec, "row_count", None)
+            column_count = getattr(spec, "column_count", None)
+            columns = getattr(spec, "columns", [])
+            identifier_columns = getattr(spec, "identifier_columns", [])
+            compatible_tasks = getattr(spec, "compatible_tasks", [])
+
+        # password, user, host, port, catalog, schema, http_schema, data_query kasıtlı olarak hariç tutulmuştur
+        return DatasetMetadata(
+            id=spec_id,
+            name=display_name or spec_id,
+            display_name=display_name,
+            description=description,
+            source=source,
+            local_data=local_data,
+            target=target,
+            columns_to_use=columns_to_use,
+            row_count=row_count,
+            column_count=column_count,
+            columns=columns if columns else [],
+            identifier_columns=identifier_columns if identifier_columns else [],
+            compatible_tasks=compatible_tasks if compatible_tasks else []
+        )
+
     def list_datasets(self) -> List[DatasetMetadata]:
         """
-        PRIORITY 5: Kayıtlı veri setlerini ve üst verilerini (schema/target/shape) listeler.
+        PRIORITY 5: Kayıtlı DataSpec veri setlerini listeler.
         """
-        # AKSIS_INTEGRATION_POINT: dataset_catalog.list_specs()
-        # specs = dataset_catalog.list_specs()
-        # return [DatasetMetadata(...) for s in specs]
-        raise NotImplementedError("RealAksisService.list_datasets henüz AKSIS veri kataloğuna bağlanmadı.")
+        try:
+            from aksis.data import dataset_catalog  # type: ignore
+            specs = dataset_catalog.list_specs()
+            return [self._map_dataspec_to_metadata(s) for s in specs]
+        except (ImportError, AttributeError):
+            return []
 
     def get_dataset(self, dataset_id: str) -> DatasetMetadata:
         """
-        PRIORITY 5: Tek bir veri setinin detaylı meta verilerini çeker.
+        PRIORITY 5: Tek bir veri setinin DataSpec meta verilerini çeker.
         """
-        # AKSIS_INTEGRATION_POINT: dataset_catalog.get_spec(dataset_id)
-        raise NotImplementedError("RealAksisService.get_dataset henüz AKSIS veri kataloğuna bağlanmadı.")
+        try:
+            from aksis.data import dataset_catalog  # type: ignore
+            spec = dataset_catalog.get_spec(dataset_id)
+            if spec is None:
+                raise ValueError(f"Dataset {dataset_id} bulunamadı.")
+            return self._map_dataspec_to_metadata(spec)
+        except (ImportError, AttributeError):
+            raise ValueError(f"Dataset {dataset_id} bulunamadı (AKSIS kütüphanesi aktif değil).")
 
     def create_experiment(self, req: ExperimentCreateRequest) -> ExperimentMetadata:
         """

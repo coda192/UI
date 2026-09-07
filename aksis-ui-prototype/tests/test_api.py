@@ -70,20 +70,43 @@ def test_datasets():
     assert isinstance(data, list)
     assert len(data) > 0
     
-    # Verify optional display_name and description support
+    # Verify DataSpec fields support
     first_ds = data[0]
+    assert "id" in first_ds
     assert "display_name" in first_ds
     assert "description" in first_ds
+    assert "source" in first_ds
+    assert "local_data" in first_ds
+    assert "columns_to_use" in first_ds
     assert first_ds["display_name"] is not None
     assert first_ds["description"] is not None
+
+    # Verify no credentials or internal DB connection details leaked
+    for ds in data:
+        assert "password" not in ds
+        assert "user" not in ds
+        assert "host" not in ds
+        assert "port" not in ds
+        assert "data_query" not in ds
+        assert "catalog" not in ds
+        assert "http_schema" not in ds
 
 def test_get_single_dataset():
     response = client.get("/api/v1/datasets/ds_class_01")
     assert response.status_code == 200
     data = response.json()
     assert data["id"] == "ds_class_01"
-    assert data["display_name"] == "Müşteri Kayıp Analizi (Customer Churn)"
+    assert data["display_name"] == "Customer Churn Analysis"
+    assert data["source"] == "csv_file"
+    assert data["local_data"] is True
+    assert "Churn" in data["columns_to_use"]
     assert "description" in data and len(data["description"]) > 0
+
+    # Ensure sensitive credentials are not exposed
+    assert "password" not in data
+    assert "user" not in data
+    assert "host" not in data
+    assert "data_query" not in data
 
 def test_create_experiment_default_mode():
     model_req = ExperimentCreateRequest(

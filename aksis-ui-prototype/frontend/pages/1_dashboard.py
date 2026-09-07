@@ -146,8 +146,9 @@ if task_keys:
                 
                 with cols[i % 2]:
                     with st.container(border=True):
-                        st.markdown(f"### ⚡ `{algo}`")
-                        st.markdown(f"**{display_title}**")
+                        st.markdown(f"### ⚡ {display_title}")
+                        if display_title != algo:
+                            st.caption(f"`{algo}`")
                         st.write(description)
                         if best_for:
                             st.markdown(f"**🎯 En Uygun Senaryo:** {', '.join(best_for) if isinstance(best_for, list) else best_for}")

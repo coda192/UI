@@ -429,8 +429,12 @@ DATASETS = [
     DatasetMetadata(
         id="ds_class_01",
         name="Customer_Churn.csv",
-        display_name="Müşteri Kayıp Analizi (Customer Churn)",
+        display_name="Customer Churn Analysis",
         description="Telekomünikasyon sektöründe müşteri demografisi, fatura tutarları ve abonelik süreleri üzerinden kayıp (churn) tahmin veri seti.",
+        source="csv_file",
+        local_data=True,
+        target="Churn",
+        columns_to_use=["CustomerID", "Age", "MonthlyCharge", "Churn"],
         row_count=10000,
         column_count=12,
         columns=[
@@ -439,15 +443,18 @@ DATASETS = [
             ColumnMetadata(name="MonthlyCharge", dtype="float", missing_count=15),
             ColumnMetadata(name="Churn", dtype="int", missing_count=0)
         ],
-        target="Churn",
         identifier_columns=["CustomerID"],
         compatible_tasks=["classification"]
     ),
     DatasetMetadata(
         id="ds_reg_01",
         name="House_Prices.csv",
-        display_name="Konut Fiyat Tahmini (House Prices)",
+        display_name="California Housing",
         description="Konutların yapısal özellikleri, konumları ve arsa büyüklüklerine göre satış fiyatlarını tahmin etmeye yönelik regresyon veri seti.",
+        source="csv_file",
+        local_data=True,
+        target="SalePrice",
+        columns_to_use=["Id", "LotArea", "SalePrice"],
         row_count=1460,
         column_count=80,
         columns=[
@@ -455,15 +462,18 @@ DATASETS = [
             ColumnMetadata(name="LotArea", dtype="int", missing_count=0),
             ColumnMetadata(name="SalePrice", dtype="float", missing_count=0)
         ],
-        target="SalePrice",
         identifier_columns=["Id"],
         compatible_tasks=["regression"]
     ),
     DatasetMetadata(
         id="ds_anom_labeled_01",
         name="CreditCard_Fraud_Labeled.csv",
-        display_name="Etiketli Kredi Kartı Dolandırıcılığı (Credit Card Fraud)",
+        display_name="Credit Card Fraud Detection",
         description="Kredi kartı işlem tutarları ve zaman serisi nitelikleri üzerinden dolandırıcılık tespiti için hazırlanmış etiketli (ground-truth) anomali veri seti.",
+        source="csv_file",
+        local_data=True,
+        target="Class",
+        columns_to_use=["Time", "Amount", "Class"],
         row_count=284807,
         column_count=31,
         columns=[
@@ -471,15 +481,18 @@ DATASETS = [
             ColumnMetadata(name="Amount", dtype="float", missing_count=0),
             ColumnMetadata(name="Class", dtype="int", missing_count=0)
         ],
-        target="Class",
         identifier_columns=[],
         compatible_tasks=["anomaly_detection"]
     ),
     DatasetMetadata(
         id="ds_anom_unlabeled_01",
         name="Server_Logs_Unlabeled.csv",
-        display_name="Etiketsiz Sunucu Metrik Logları (Server Logs)",
+        display_name="Server Performance Metrics",
         description="Sunucu CPU ve bellek kullanım metriklerini içeren, gerçek etiket bulunmayan denetimsiz anomali tespiti veri seti.",
+        source="stream_logs",
+        local_data=False,
+        target=None,
+        columns_to_use=["LogID", "CPU_Usage", "Mem_Usage"],
         row_count=50000,
         column_count=15,
         columns=[
@@ -487,7 +500,6 @@ DATASETS = [
             ColumnMetadata(name="CPU_Usage", dtype="float", missing_count=0),
             ColumnMetadata(name="Mem_Usage", dtype="float", missing_count=0)
         ],
-        target=None,
         identifier_columns=["LogID"],
         compatible_tasks=["anomaly_detection"]
     )
