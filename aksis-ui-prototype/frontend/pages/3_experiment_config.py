@@ -1,6 +1,7 @@
 import streamlit as st
 from api.client import AksisAPIError
-from utils.model_guidance import get_algorithm_metadata, get_algorithm_display_name
+from utils.model_guidance import get_algorithm_display_name, get_algorithm_metadata
+from components.parameter_editor import render_parameter_editor
 
 st.title("⚙️ Deney Yapılandırma (Experiment Visual Editor)")
 st.caption("AKSIS Çerçevesi için yeni bir makine öğrenmesi veya optimizasyon deneyi tanımlayın.")
@@ -31,7 +32,7 @@ PRESET_NAMES_TR = {
     "baseline": "Temel Seviye (baseline)",
     "fast": "Hızlı (fast)",
     "strong": "Yüksek Başarım (strong)",
-    "custom": "Özel Ayar (custom)",
+    "custom": "Özel Parametre Ayarı (custom)",
     "interpretable": "Yorumlanabilir (interpretable)",
     "accurate": "Yüksek Doğruluk (accurate)",
     "default": "Varsayılan (default)"
@@ -73,11 +74,6 @@ TUNING_PRUNER_TR = {
     "hyperband": "Hyperband"
 }
 
-TUNING_SPACE_TR = {
-    "baseline": "Temel Arama Uzayı (baseline)",
-    "deep": "Genişletilmiş / Derin Arama (deep)"
-}
-
 # ==============================================================================
 # 1. CAPABILITIES VE DATASETS YÜKLEME (API FLOW)
 # ==============================================================================
@@ -105,7 +101,7 @@ if not datasets:
 # ==============================================================================
 # 2. VERİ SETİ VE ÇALIŞMA MODU SEÇİMİ
 # ==============================================================================
-dataset_options = {d["id"]: d["name"] for d in datasets}
+dataset_options = {d["id"]: f"{d.get('display_name')} ({d['name']})" if d.get("display_name") else d["name"] for d in datasets}
 
 # Oturum durumundaki veri setini hatırla
 default_ds_idx = 0
@@ -140,8 +136,6 @@ with st.form("experiment_config_form"):
     col_mode1, col_mode2 = st.columns(2)
     
     with col_mode1:
-        # API'den gelen modes içinden New Experiment akışına uygun olanları filtrele (train, tune)
-        # predict modu arayüzde 'Modeller & Toplu Tahmin' sayfasında özel olarak yönetilir.
         api_modes = capabilities.get("modes", [])
         workflow_modes = [m for m in api_modes if m in ("train", "tune")]
         if not workflow_modes:
@@ -191,8 +185,9 @@ with st.form("experiment_config_form"):
     # ==============================================================================
     st.subheader("2. Model ve Algoritma Seçimi")
     
+    custom_overrides = {}
+    
     if task:
-        # Algoritmaları doğrudan API capabilities içinden çek
         available_algos = capabilities.get("algorithms", {}).get(task, [])
         api_presets = capabilities.get("model_presets", [])
         
@@ -219,6 +214,14 @@ with st.form("experiment_config_form"):
                 else:
                     preset = None
                 
+            # Uyumsuz session state parametrelerini temizle (State cleanup)
+            current_model_context = f"{task}_{algorithm}_{preset}"
+            if st.session_state.get("last_model_context") != current_model_context:
+                for k in list(st.session_state.keys()):
+                    if k.startswith("custom_param_"):
+                        del st.session_state[k]
+                st.session_state.last_model_context = current_model_context
+
             # Seçilen model için anlık karar destek rehberi
             if algorithm:
                 algo_meta = get_algorithm_metadata(algorithm, capabilities)
@@ -237,6 +240,18 @@ with st.form("experiment_config_form"):
                         st.caption(f"**✅ Güçlü Yönler:** {', '.join(strengths) if isinstance(strengths, list) else strengths}")
                     if limitations:
                         st.caption(f"**⚠️ Dikkat Edilmesi Gerekenler:** {', '.join(limitations) if isinstance(limitations, list) else limitations}")
+
+            # ==============================================================================
+            # ÖZEL MODEL PARAMETRELERİ (Yalnızca preset == "custom" İken Açılır)
+            # ==============================================================================
+            if preset == "custom" and algorithm:
+                st.divider()
+                param_schemas_dict = capabilities.get("parameter_schema") or {}
+                algo_param_schema = param_schemas_dict.get(task, {}).get(algorithm)
+                custom_overrides = render_parameter_editor(
+                    algo_param_schema,
+                    key_prefix=f"custom_param_{task}_{algorithm}"
+                )
     else:
         algorithm = None
         preset = None
@@ -249,7 +264,6 @@ with st.form("experiment_config_form"):
     tuning_pruner = None
     tuning_trials = 10
     tuning_scoring = None
-    tuning_space = "baseline"
     
     if selected_mode == "tune":
         st.divider()
@@ -259,7 +273,6 @@ with st.form("experiment_config_form"):
         tuning_opts = capabilities.get("tuning_options", {})
         samplers = tuning_opts.get("sampler", [])
         pruners = tuning_opts.get("pruner", [])
-        spaces = tuning_opts.get("space_preset", [])
         
         scoring_opts = capabilities.get("scoring_options", {}).get(task, [])
             
@@ -350,6 +363,9 @@ with st.form("experiment_config_form"):
         if not task or not algorithm:
             st.error("Lütfen görev ve algoritma seçimini eksiksiz tamamlayın.")
         else:
+            # Sadece preset == "custom" iken overrides ekle, aksi halde boş sözlük {}
+            final_overrides = custom_overrides if preset == "custom" else {}
+
             # API JSON Sözleşmesini Oluştur
             req_payload = {
                 "name": exp_name,
@@ -360,7 +376,7 @@ with st.form("experiment_config_form"):
                 "model": {
                     "algorithm": algorithm,
                     "preset": preset,
-                    "overrides": {}
+                    "overrides": final_overrides
                 },
                 "preprocessing": {
                     "missing_value": None if missing_val == "none" else missing_val,

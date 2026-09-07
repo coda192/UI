@@ -1,5 +1,6 @@
 from fastapi.testclient import TestClient
 from backend.main import app
+from backend.schemas import CapabilityResponse, ExperimentCreateRequest, ModelConfig
 
 client = TestClient(app)
 
@@ -34,6 +35,34 @@ def test_capabilities():
     assert "limitations" in xgb_meta and isinstance(xgb_meta["limitations"], list)
     assert "best_for" in xgb_meta and isinstance(xgb_meta["best_for"], list)
 
+    # Verify parameter_schema contract
+    assert "parameter_schema" in data
+    assert data["parameter_schema"] is not None
+    assert "classification" in data["parameter_schema"]
+    assert "xgb_c" in data["parameter_schema"]["classification"]
+    xgb_schema = data["parameter_schema"]["classification"]["xgb_c"]
+    assert "n_estimators" in xgb_schema
+    assert xgb_schema["n_estimators"]["type"] == "int"
+    assert "learning_rate" in xgb_schema
+    assert xgb_schema["learning_rate"]["type"] == "float"
+
+def test_parameter_schema_optional_contract():
+    # Verify CapabilityResponse can be initialized without parameter_schema
+    cap = CapabilityResponse(
+        learning_types=["supervised"],
+        tasks={"supervised": ["classification"]},
+        modes=["train"],
+        algorithms={"classification": ["xgb_c"]},
+        model_presets=["baseline", "custom"],
+        preprocessing_strategies={},
+        validation_options=["holdout"],
+        tuning_options={},
+        scoring_options={},
+        evaluation_capabilities=[],
+        visualization_capabilities=[]
+    )
+    assert cap.parameter_schema is None
+
 def test_datasets():
     response = client.get("/api/v1/datasets")
     assert response.status_code == 200
@@ -57,8 +86,6 @@ def test_get_single_dataset():
     assert "description" in data and len(data["description"]) > 0
 
 def test_create_experiment_default_mode():
-    # Omitting 'mode' in payload must default to 'train', not 'local'
-    from backend.schemas import ExperimentCreateRequest, ModelConfig
     model_req = ExperimentCreateRequest(
         name="Test_Default_Mode",
         dataset_id="ds_class_01",
@@ -101,6 +128,48 @@ def test_create_experiment_train_mode():
     data = response.json()
     assert data["status"] == "configured"
     assert data["name"] == "Test_Train"
+
+def test_create_experiment_custom_preset_with_overrides():
+    req = {
+        "name": "Test_Custom_XGB",
+        "dataset_id": "ds_class_01",
+        "learning_type": "supervised",
+        "task": "classification",
+        "mode": "train",
+        "model": {
+            "algorithm": "xgb_c",
+            "preset": "custom",
+            "overrides": {
+                "n_estimators": 500,
+                "learning_rate": 0.05,
+                "max_depth": 8,
+                "booster": "gbtree"
+            }
+        }
+    }
+    response = client.post("/api/v1/experiments", json=req)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "configured"
+    assert data["name"] == "Test_Custom_XGB"
+
+def test_create_experiment_non_custom_preset_empty_overrides():
+    req = {
+        "name": "Test_Fast_Preset",
+        "dataset_id": "ds_class_01",
+        "learning_type": "supervised",
+        "task": "classification",
+        "mode": "train",
+        "model": {
+            "algorithm": "xgb_c",
+            "preset": "fast",
+            "overrides": {}
+        }
+    }
+    response = client.post("/api/v1/experiments", json=req)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "configured"
 
 def test_create_experiment_tune_mode():
     req = {

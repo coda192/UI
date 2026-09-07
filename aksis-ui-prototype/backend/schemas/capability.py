@@ -11,7 +11,7 @@ class AlgorithmMetadata(BaseModel):
 class CapabilityResponse(BaseModel):
     learning_types: List[str]
     tasks: Dict[str, List[str]] # e.g. "supervised": ["classification", "regression"]
-    modes: List[str] # e.g. ["train", "tune"]
+    modes: List[str] # e.g. ["train", "tune", "predict"]
     algorithms: Dict[str, List[str]] # e.g. "classification": ["logreg", "catboost"]
     model_presets: List[str]
     preprocessing_strategies: Dict[str, List[str]] # e.g. "missing_value": ["mean", "median", "drop"]
@@ -21,3 +21,4 @@ class CapabilityResponse(BaseModel):
     evaluation_capabilities: List[str]
     visualization_capabilities: List[str]
     algorithm_metadata: Optional[Dict[str, AlgorithmMetadata]] = None
+    parameter_schema: Optional[Dict[str, Dict[str, Dict[str, Any]]]] = None

@@ -256,6 +256,139 @@ ALGORITHM_METADATA = {
     )
 }
 
+PARAMETER_SCHEMA = {
+    "classification": {
+        "xgb_c": {
+            "n_estimators": {
+                "type": "int",
+                "default": 100,
+                "min": 10,
+                "max": 2000,
+                "step": 10,
+                "description": "Number of gradient boosted trees."
+            },
+            "learning_rate": {
+                "type": "float",
+                "default": 0.1,
+                "min": 0.001,
+                "max": 1.0,
+                "step": 0.01,
+                "description": "Boosting learning rate."
+            },
+            "max_depth": {
+                "type": "int",
+                "default": 6,
+                "min": 1,
+                "max": 20,
+                "step": 1,
+                "description": "Maximum tree depth."
+            },
+            "booster": {
+                "type": "choice",
+                "default": "gbtree",
+                "choices": ["gbtree", "gblinear", "dart"],
+                "description": "Type of boosting model to use."
+            },
+            "use_label_encoder": {
+                "type": "bool",
+                "default": False,
+                "description": "Whether to use internal label encoder."
+            }
+        },
+        "logreg": {
+            "C": {
+                "type": "float",
+                "default": 1.0,
+                "min": 0.001,
+                "max": 100.0,
+                "step": 0.1,
+                "description": "Inverse of regularization strength."
+            },
+            "penalty": {
+                "type": "choice",
+                "default": "l2",
+                "choices": ["l1", "l2", "elasticnet", None],
+                "nullable": True,
+                "description": "Norm used in the penalization."
+            },
+            "fit_intercept": {
+                "type": "bool",
+                "default": True,
+                "description": "Whether to calculate the intercept for this model."
+            }
+        }
+    },
+    "regression": {
+        "ridge": {
+            "alpha": {
+                "type": "float",
+                "default": 1.0,
+                "min": 0.01,
+                "max": 1000.0,
+                "step": 0.1,
+                "description": "Regularization strength."
+            },
+            "fit_intercept": {
+                "type": "bool",
+                "default": True,
+                "description": "Whether to calculate the intercept."
+            },
+            "solver": {
+                "type": "choice",
+                "default": "auto",
+                "choices": ["auto", "svd", "cholesky", "lsqr", "sparse_cg"],
+                "description": "Solver to use in the computational routines."
+            }
+        },
+        "xgb": {
+            "n_estimators": {
+                "type": "int",
+                "default": 100,
+                "min": 10,
+                "max": 2000,
+                "step": 10,
+                "description": "Number of boosting trees."
+            },
+            "learning_rate": {
+                "type": "float",
+                "default": 0.1,
+                "min": 0.001,
+                "max": 1.0,
+                "step": 0.01,
+                "description": "Boosting learning rate."
+            }
+        }
+    },
+    "anomaly_detection": {
+        "isolation_forest": {
+            "n_estimators": {
+                "type": "int",
+                "default": 100,
+                "min": 10,
+                "max": 1000,
+                "step": 10,
+                "description": "The number of base estimators in the ensemble."
+            },
+            "contamination": {
+                "type": "choice",
+                "default": "auto",
+                "choices": ["auto", 0.01, 0.05, 0.1],
+                "description": "The amount of contamination of the data set."
+            },
+            "bootstrap": {
+                "type": "bool",
+                "default": False,
+                "description": "If True, individual trees are fit on random subsets."
+            },
+            "random_seed_name": {
+                "type": "str",
+                "default": "default_seed",
+                "description": "Identifier tag for random initialization."
+            }
+        }
+    }
+}
+
 CAPABILITIES = CapabilityResponse(
     learning_types=["supervised", "unsupervised"],
     tasks={
@@ -288,7 +421,8 @@ CAPABILITIES = CapabilityResponse(
     },
     evaluation_capabilities=["confusion_matrix", "feature_importance", "residuals", "anomaly_distribution"],
     visualization_capabilities=["roc_curve", "pr_curve", "residual_plot", "feature_importance_plot", "anomaly_score_histogram"],
-    algorithm_metadata=ALGORITHM_METADATA
+    algorithm_metadata=ALGORITHM_METADATA,
+    parameter_schema=PARAMETER_SCHEMA
 )
 
 DATASETS = [
