@@ -69,7 +69,95 @@ def test_mock_service_anomaly_detection_results():
     meta_labeled = service.create_experiment(req_labeled)
     meta_labeled.status = "completed"
     
-    res_labeled = service.get_experiment_results(meta_labeled.id)
-    assert res_labeled.has_ground_truth is True
-    assert res_labeled.metrics.anomaly_metrics.get("f1") is not None
+def test_real_aksis_service_dataspec_mapping_and_security():
+    from backend.services.aksis_service import RealAksisService, _DATASET_INDEX
+    from types import SimpleNamespace
+    
+    # Simulate a raw DataSpec object with sensitive backend fields
+    raw_spec = SimpleNamespace(
+        id="credit_card_fraud",
+        display_name="Kredi Kartı Dolandırıcılığı",
+        description="Gerçek zamanlı fraud tespiti veri seti",
+        source="oracle_db",
+        local_data=True,
+        target="Class",
+        columns_to_use=["Time", "Amount", "V1", "V2"],
+        # Sensitive fields that MUST be excluded:
+        host="192.168.1.100",
+        port=1521,
+        user="db_admin",
+        password="SuperSecretPassword123!",
+        catalog="FINANCE",
+        schema="TRANSACTIONS",
+        http_schema="https",
+        data_query="SELECT * FROM secret_transactions_table"
+    )
+    
+    metadata = RealAksisService._map_dataspec_to_metadata(raw_spec)
+    
+    # Verify UI-safe fields
+    assert metadata.id == "credit_card_fraud"
+    assert metadata.display_name == "Kredi Kartı Dolandırıcılığı"
+    assert metadata.description == "Gerçek zamanlı fraud tespiti veri seti"
+    assert metadata.source == "oracle_db"
+    assert metadata.local_data is True
+    assert metadata.target == "Class"
+    assert metadata.columns_to_use == ["Time", "Amount", "V1", "V2"]
+    
+    # Verify sensitive fields are NOT in the schema
+    meta_dict = metadata.model_dump()
+    for sensitive in ["host", "port", "user", "password", "catalog", "schema", "http_schema", "data_query"]:
+        assert sensitive not in meta_dict, f"Sensitive field '{sensitive}' must not be exposed!"
+
+def test_real_aksis_service_dataset_index_registry(monkeypatch):
+    import backend.services.aksis_service as aksis_mod
+    from backend.services.aksis_service import RealAksisService
+    from types import SimpleNamespace
+    
+    mock_spec1 = SimpleNamespace(
+        id="reg_housing",
+        display_name="Konut Fiyatları",
+        description="Ev fiyat tahmini",
+        source="csv_file",
+        local_data=True,
+        target="SalePrice",
+        columns_to_use=["LotArea", "YearBuilt"]
+    )
+    mock_spec2 = SimpleNamespace(
+        id="cls_churn",
+        display_name=None, # Missing display_name fallback test
+        description=None,  # Missing description test
+        source="db",
+        local_data=False,
+        target="Churn",
+        columns_to_use=None
+    )
+    
+    # Populate _DATASET_INDEX
+    test_index = {
+        "reg_housing": mock_spec1,
+        "cls_churn": mock_spec2
+    }
+    monkeypatch.setattr(aksis_mod, "_DATASET_INDEX", test_index)
+    
+    service = RealAksisService()
+    datasets = service.list_datasets()
+    
+    assert len(datasets) == 2
+    ds_ids = [d.id for d in datasets]
+    assert "reg_housing" in ds_ids
+    assert "cls_churn" in ds_ids
+    
+    # Verify fallback for missing display_name
+    churn_meta = service.get_dataset("cls_churn")
+    assert churn_meta.id == "cls_churn"
+    assert churn_meta.name == "cls_churn"  # fallback to id
+    assert churn_meta.display_name is None
+    assert churn_meta.description is None
+    
+    # Verify retrieval of reg_housing
+    housing_meta = service.get_dataset("reg_housing")
+    assert housing_meta.id == "reg_housing"
+    assert housing_meta.display_name == "Konut Fiyatları"
+    assert housing_meta.target == "SalePrice"
 

@@ -20,25 +20,71 @@ from backend.schemas import (
 )
 
 # ==============================================================================
-# AKSIS İTHALAT (IMPORT) NOKTASI
-# Özel / Şirket bilgisayarında aşağıdaki importların başındaki yorumları kaldırın:
+# AKSIS DATASET REGISTRY IMPORT
 # ==============================================================================
-# try:
-#     from aksis.config import ExperimentConfig, ModelConfig, PreprocessConfig, TuningConfig, ValidationConfig
-#     from aksis.runner import run_experiment as aksis_run_experiment
-#     from aksis.registry import model_registry, task_registry
-#     from aksis.data import dataset_catalog
-#     from aksis.inference import predict_batch
-#     AKSIS_AVAILABLE = True
-# except ImportError:
-#     AKSIS_AVAILABLE = False
-# ==============================================================================
+try:
+    from src.data.dataset import (
+        REG_DATASETS,
+        CLS_DATASETS,
+        ANOMALY_DETECTION_DATSETS,
+        get_dataset as aksis_get_dataset
+    )
+except ImportError:
+    try:
+        from aksis.data.dataset import (
+            REG_DATASETS,
+            CLS_DATASETS,
+            ANOMALY_DETECTION_DATSETS,
+            get_dataset as aksis_get_dataset
+        )
+    except ImportError:
+        try:
+            from src.data import (
+                REG_DATASETS,
+                CLS_DATASETS,
+                ANOMALY_DETECTION_DATSETS,
+                get_dataset as aksis_get_dataset
+            )
+        except ImportError:
+            try:
+                from aksis.data import (
+                    REG_DATASETS,
+                    CLS_DATASETS,
+                    ANOMALY_DETECTION_DATSETS,
+                    get_dataset as aksis_get_dataset
+                )
+            except ImportError:
+                REG_DATASETS = ()
+                CLS_DATASETS = ()
+                ANOMALY_DETECTION_DATSETS = ()
+                aksis_get_dataset = None
+
+_DATASET_INDEX: Dict[str, Any] = {}
+if REG_DATASETS or CLS_DATASETS or ANOMALY_DETECTION_DATSETS:
+    _DATASET_INDEX = {
+        d.id: d
+        for d in (
+            *REG_DATASETS,
+            *CLS_DATASETS,
+            *ANOMALY_DETECTION_DATSETS
+        )
+    }
+
+def get_dataset(dataset_id: str):
+    if aksis_get_dataset is not None:
+        try:
+            return aksis_get_dataset(dataset_id)
+        except Exception:
+            pass
+    if dataset_id in _DATASET_INDEX:
+        return _DATASET_INDEX[dataset_id]
+    raise KeyError(f"Dataset '{dataset_id}' not found in AKSIS dataset registry.")
 
 
 class RealAksisService(AksisService):
     """
     Kurumsal AKSIS Çerçevesi için Minimal ve Güvenli Adaptör Katmanı.
-    Bu sınıf doğrudan 'src/' altındaki kütüphane fonksiyonlarıyla haberleşir.
+    Bu sınıf doğrudan 'src/' altındaki kütüphane fonksiyonlarıyla ve registry ile haberleşir.
     """
 
     def __init__(self):
@@ -49,37 +95,33 @@ class RealAksisService(AksisService):
         """
         PRIORITY 2: AKSIS bünyesinde kayıtlı algoritmaları, görevleri ve stratejileri döner.
         """
-        # AKSIS_INTEGRATION_POINT: model_registry ve task_registry entegrasyonu
-        # Örnek:
-        # tasks = task_registry.get_all()
-        # algorithms = model_registry.get_all_by_task()
         return CapabilityResponse(
             learning_types=["supervised", "unsupervised"],
             tasks={
                 "supervised": ["classification", "regression"],
                 "unsupervised": ["anomaly_detection"]
             },
-            modes=["local"],
+            modes=["train", "tune", "predict"],
             algorithms={
-                "classification": ["Logistic Regression", "Random Forest", "HistGradientBoosting", "SVC", "KNN", "CatBoost", "XGBoost"],
-                "regression": ["Ridge", "SVR", "Random Forest", "HistGradientBoosting", "XGBoost"],
-                "anomaly_detection": ["Isolation Forest", "Local Outlier Factor", "One-Class SVM", "Elliptic Envelope"]
+                "classification": ["logreg", "random_forest_c", "hgb_c", "svc", "knn", "catboost", "xgb_c"],
+                "regression": ["ridge", "svr", "random_forest_r", "xgb", "hgb_r"],
+                "anomaly_detection": ["isolation_forest", "lof", "one_class_svm", "elliptic_envelope"]
             },
-            model_presets=["fast", "accurate", "interpretable"],
+            model_presets=["baseline", "fast", "strong", "custom"],
             preprocessing_strategies={
-                "missing_value": ["mean", "median", "most_frequent", "drop"],
-                "encoding": ["onehot", "label", "target"],
+                "missing_value": ["mean", "median", "most_frequent", "constant", "drop"],
+                "encoding": ["onehot", "frequency", "hashing"],
                 "scaling": ["standard", "minmax", "robust"]
             },
             validation_options=["holdout", "kfold", "stratified_kfold"],
             tuning_options={
-                "sampler": ["tpe", "random", "grid"],
-                "pruner": ["median", "hyperband"]
+                "sampler": ["tpe", "random"],
+                "pruner": ["none", "median", "sha"]
             },
             scoring_options={
-                "classification": ["accuracy", "f1", "precision", "recall", "roc_auc"],
-                "regression": ["rmse", "mae", "r2"],
-                "anomaly_detection": ["f1", "precision", "recall"]
+                "classification": ["f1_macro", "accuracy", "balanced_accuracy"],
+                "regression": ["neg_mean_squared_error", "r2", "rmse", "mae"],
+                "anomaly_detection": ["f1_score", "accuracy", "anomaly_count", "anomaly_ratio"]
             },
             evaluation_capabilities=["confusion_matrix", "feature_importance", "residuals", "anomaly_distribution"],
             visualization_capabilities=["roc_curve", "pr_curve", "residual_plot", "feature_importance_plot", "anomaly_score_histogram"]
@@ -139,27 +181,23 @@ class RealAksisService(AksisService):
 
     def list_datasets(self) -> List[DatasetMetadata]:
         """
-        PRIORITY 5: Kayıtlı DataSpec veri setlerini listeler.
+        PRIORITY 5: Gerçek AKSIS _DATASET_INDEX bünyesindeki veri setlerini listeler.
+        ID tekrarını (duplicate) önler ve güvenli DataSpec meta verilerini döner.
         """
-        try:
-            from aksis.data import dataset_catalog  # type: ignore
-            specs = dataset_catalog.list_specs()
-            return [self._map_dataspec_to_metadata(s) for s in specs]
-        except (ImportError, AttributeError):
-            return []
+        return [self._map_dataspec_to_metadata(spec) for spec in _DATASET_INDEX.values()]
 
     def get_dataset(self, dataset_id: str) -> DatasetMetadata:
         """
-        PRIORITY 5: Tek bir veri setinin DataSpec meta verilerini çeker.
+        PRIORITY 5: get_dataset() fonksiyonu / _DATASET_INDEX üzerinden tek bir veri setinin
+        DataSpec meta verilerini çeker.
         """
         try:
-            from aksis.data import dataset_catalog  # type: ignore
-            spec = dataset_catalog.get_spec(dataset_id)
+            spec = get_dataset(dataset_id)
             if spec is None:
-                raise ValueError(f"Dataset {dataset_id} bulunamadı.")
+                raise ValueError(f"Dataset '{dataset_id}' bulunamadı.")
             return self._map_dataspec_to_metadata(spec)
-        except (ImportError, AttributeError):
-            raise ValueError(f"Dataset {dataset_id} bulunamadı (AKSIS kütüphanesi aktif değil).")
+        except (KeyError, IndexError, ValueError):
+            raise ValueError(f"Dataset '{dataset_id}' bulunamadı.")
 
     def create_experiment(self, req: ExperimentCreateRequest) -> ExperimentMetadata:
         """
