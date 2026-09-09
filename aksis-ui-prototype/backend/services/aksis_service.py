@@ -20,65 +20,24 @@ from backend.schemas import (
 )
 
 # ==============================================================================
-# AKSIS DATASET REGISTRY IMPORT
+# AKSIS DATASET REGISTRY IMPORT (Single Verified Real Import Path)
 # ==============================================================================
 try:
     from src.data.dataset import (
         REG_DATASETS,
         CLS_DATASETS,
         ANOMALY_DETECTION_DATSETS,
-        get_dataset as aksis_get_dataset
+        _DATASET_INDEX,
+        get_dataset
     )
+    AKSIS_DATASET_AVAILABLE = True
 except ImportError:
-    try:
-        from aksis.data.dataset import (
-            REG_DATASETS,
-            CLS_DATASETS,
-            ANOMALY_DETECTION_DATSETS,
-            get_dataset as aksis_get_dataset
-        )
-    except ImportError:
-        try:
-            from src.data import (
-                REG_DATASETS,
-                CLS_DATASETS,
-                ANOMALY_DETECTION_DATSETS,
-                get_dataset as aksis_get_dataset
-            )
-        except ImportError:
-            try:
-                from aksis.data import (
-                    REG_DATASETS,
-                    CLS_DATASETS,
-                    ANOMALY_DETECTION_DATSETS,
-                    get_dataset as aksis_get_dataset
-                )
-            except ImportError:
-                REG_DATASETS = ()
-                CLS_DATASETS = ()
-                ANOMALY_DETECTION_DATSETS = ()
-                aksis_get_dataset = None
-
-_DATASET_INDEX: Dict[str, Any] = {}
-if REG_DATASETS or CLS_DATASETS or ANOMALY_DETECTION_DATSETS:
-    _DATASET_INDEX = {
-        d.id: d
-        for d in (
-            *REG_DATASETS,
-            *CLS_DATASETS,
-            *ANOMALY_DETECTION_DATSETS
-        )
-    }
-
-def get_dataset(dataset_id: str):
-    if aksis_get_dataset is not None:
-        try:
-            return aksis_get_dataset(dataset_id)
-        except Exception:
-            pass
-    if dataset_id in _DATASET_INDEX:
-        return _DATASET_INDEX[dataset_id]
-    raise KeyError(f"Dataset '{dataset_id}' not found in AKSIS dataset registry.")
+    AKSIS_DATASET_AVAILABLE = False
+    REG_DATASETS = ()
+    CLS_DATASETS = ()
+    ANOMALY_DETECTION_DATSETS = ()
+    _DATASET_INDEX = {}
+    get_dataset = None
 
 
 class RealAksisService(AksisService):
@@ -188,9 +147,11 @@ class RealAksisService(AksisService):
 
     def get_dataset(self, dataset_id: str) -> DatasetMetadata:
         """
-        PRIORITY 5: get_dataset() fonksiyonu / _DATASET_INDEX üzerinden tek bir veri setinin
+        PRIORITY 5: get_dataset() fonksiyonu üzerinden tek bir veri setinin
         DataSpec meta verilerini çeker.
         """
+        if get_dataset is None:
+            raise ValueError(f"Dataset '{dataset_id}' bulunamadı (AKSIS kütüphanesi aktif değil).")
         try:
             spec = get_dataset(dataset_id)
             if spec is None:

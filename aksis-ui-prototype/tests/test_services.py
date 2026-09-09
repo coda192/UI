@@ -139,6 +139,7 @@ def test_real_aksis_service_dataset_index_registry(monkeypatch):
         "cls_churn": mock_spec2
     }
     monkeypatch.setattr(aksis_mod, "_DATASET_INDEX", test_index)
+    monkeypatch.setattr(aksis_mod, "get_dataset", lambda dataset_id: test_index.get(dataset_id))
     
     service = RealAksisService()
     datasets = service.list_datasets()
