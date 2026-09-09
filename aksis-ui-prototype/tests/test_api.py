@@ -46,6 +46,38 @@ def test_capabilities():
     assert "learning_rate" in xgb_schema
     assert xgb_schema["learning_rate"]["type"] == "float"
 
+
+def test_capabilities_real_aksis_provider(monkeypatch):
+    import backend.services.aksis_service as aksis_mod
+    monkeypatch.setenv("AKSIS_PROVIDER", "aksis")
+    mock_caps = {
+        "learning_types": ["supervised", "unsupervised"],
+        "tasks": {"supervised": ["classification"]},
+        "modes": ["train"],
+        "algorithms": {"classification": ["logreg"]},
+        "model_presets": ["baseline"],
+        "preprocessing": {"missing_value": ["mean"]},
+        "tuning": {"sampler": ["tpe"]},
+        "algorithm_metadata": {
+            "logreg": {
+                "display_name": "Logistic Regression",
+                "description": "Linear classifier",
+                "strengths": ["Fast"],
+                "limitations": ["Linear boundary only"],
+                "best_for": ["Baseline"]
+            }
+        }
+    }
+    monkeypatch.setattr(aksis_mod, "aksis_get_capabilities", lambda: mock_caps)
+    response = client.get("/api/v1/capabilities")
+    assert response.status_code == 200
+    data = response.json()
+    assert "algorithm_metadata" in data
+    assert "logreg" in data["algorithm_metadata"]
+    assert data["algorithm_metadata"]["logreg"]["display_name"] == "Logistic Regression"
+    assert data["algorithm_metadata"]["logreg"]["strengths"] == ["Fast"]
+
+
 def test_parameter_schema_optional_contract():
     # Verify CapabilityResponse can be initialized without parameter_schema
     cap = CapabilityResponse(

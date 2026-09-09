@@ -162,3 +162,69 @@ def test_real_aksis_service_dataset_index_registry(monkeypatch):
     assert housing_meta.display_name == "Konut Fiyatları"
     assert housing_meta.target == "SalePrice"
 
+
+def test_real_aksis_service_get_capabilities_mapping(monkeypatch):
+    import backend.services.aksis_service as aksis_mod
+    from backend.services.aksis_service import RealAksisService
+
+    mock_caps = {
+        "learning_types": ["supervised", "unsupervised"],
+        "tasks": {"supervised": ["classification", "regression"]},
+        "modes": ["train", "tune"],
+        "algorithms": {
+            "classification": ["logreg", "random_forest_c"],
+            "regression": ["ridge"]
+        },
+        "model_presets": ["baseline", "fast"],
+        "preprocessing": {
+            "missing_value": ["mean", "median"],
+            "encoding": ["onehot"]
+        },
+        "tuning": {
+            "sampler": ["tpe"],
+            "pruner": ["none"]
+        },
+        "algorithm_metadata": {
+            "logreg": {
+                "display_name": "Lojistik Regresyon",
+                "description": "Doğrusal sınıflandırma modeli",
+                "strengths": ["Hızlı", "Açıklanabilir"],
+                "limitations": ["Doğrusal olmayan ilişkileri yakalayamaz"],
+                "best_for": ["Baseline modeller"]
+            }
+        },
+        "parameter_schema": {
+            "logreg": {
+                "C": {"type": "float", "default": 1.0}
+            }
+        }
+    }
+
+    monkeypatch.setattr(aksis_mod, "aksis_get_capabilities", lambda: mock_caps)
+
+    service = RealAksisService()
+    res = service.get_capabilities()
+
+    assert res.learning_types == ["supervised", "unsupervised"]
+    assert res.algorithms["classification"] == ["logreg", "random_forest_c"]
+    assert res.preprocessing_strategies["missing_value"] == ["mean", "median"]
+    assert res.tuning_options["sampler"] == ["tpe"]
+    assert res.algorithm_metadata is not None
+    assert "logreg" in res.algorithm_metadata
+    assert res.algorithm_metadata["logreg"].display_name == "Lojistik Regresyon"
+    assert res.algorithm_metadata["logreg"].strengths == ["Hızlı", "Açıklanabilir"]
+    assert res.parameter_schema["logreg"]["C"]["default"] == 1.0
+
+
+def test_real_aksis_service_get_capabilities_missing_lib(monkeypatch):
+    import pytest
+    import backend.services.aksis_service as aksis_mod
+    from backend.services.aksis_service import RealAksisService
+
+    monkeypatch.setattr(aksis_mod, "aksis_get_capabilities", None)
+
+    service = RealAksisService()
+    with pytest.raises(RuntimeError, match="AKSIS kütüphanesi"):
+        service.get_capabilities()
+
+

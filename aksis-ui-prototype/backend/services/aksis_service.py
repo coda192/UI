@@ -20,8 +20,13 @@ from backend.schemas import (
 )
 
 # ==============================================================================
-# AKSIS DATASET REGISTRY IMPORT (Single Verified Real Import Path)
+# AKSIS CORE CAPABILITIES & DATASET REGISTRY IMPORT
 # ==============================================================================
+try:
+    from src.core.capabilities import get_capabilities as aksis_get_capabilities
+except ImportError:
+    aksis_get_capabilities = None
+
 try:
     from src.data.dataset import (
         REG_DATASETS,
@@ -52,39 +57,34 @@ class RealAksisService(AksisService):
 
     def get_capabilities(self) -> CapabilityResponse:
         """
-        PRIORITY 2: AKSIS bünyesinde kayıtlı algoritmaları, görevleri ve stratejileri döner.
+        AKSIS bünyesinde kayıtlı algoritmaları, görevleri, stratejileri ve
+        algorithm_metadata sözlüğünü döner.
         """
-        return CapabilityResponse(
-            learning_types=["supervised", "unsupervised"],
-            tasks={
-                "supervised": ["classification", "regression"],
-                "unsupervised": ["anomaly_detection"]
-            },
-            modes=["train", "tune", "predict"],
-            algorithms={
-                "classification": ["logreg", "random_forest_c", "hgb_c", "svc", "knn", "catboost", "xgb_c"],
-                "regression": ["ridge", "svr", "random_forest_r", "xgb", "hgb_r"],
-                "anomaly_detection": ["isolation_forest", "lof", "one_class_svm", "elliptic_envelope"]
-            },
-            model_presets=["baseline", "fast", "strong", "custom"],
-            preprocessing_strategies={
-                "missing_value": ["mean", "median", "most_frequent", "constant", "drop"],
-                "encoding": ["onehot", "frequency", "hashing"],
-                "scaling": ["standard", "minmax", "robust"]
-            },
-            validation_options=["holdout", "kfold", "stratified_kfold"],
-            tuning_options={
-                "sampler": ["tpe", "random"],
-                "pruner": ["none", "median", "sha"]
-            },
-            scoring_options={
-                "classification": ["f1_macro", "accuracy", "balanced_accuracy"],
-                "regression": ["neg_mean_squared_error", "r2", "rmse", "mae"],
-                "anomaly_detection": ["f1_score", "accuracy", "anomaly_count", "anomaly_ratio"]
-            },
-            evaluation_capabilities=["confusion_matrix", "feature_importance", "residuals", "anomaly_distribution"],
-            visualization_capabilities=["roc_curve", "pr_curve", "residual_plot", "feature_importance_plot", "anomaly_score_histogram"]
-        )
+        if aksis_get_capabilities is not None:
+            raw = aksis_get_capabilities()
+            aksis_caps = raw.model_dump() if hasattr(raw, "model_dump") else dict(raw)
+
+            # Map aksis dictionary into CapabilityResponse contract
+            preprocessing = aksis_caps.get("preprocessing_strategies") or aksis_caps.get("preprocessing") or {}
+            tuning = aksis_caps.get("tuning_options") or aksis_caps.get("tuning") or {}
+
+            return CapabilityResponse(
+                learning_types=aksis_caps.get("learning_types", ["supervised", "unsupervised"]),
+                tasks=aksis_caps.get("tasks", {}),
+                modes=aksis_caps.get("modes", ["train", "tune", "predict"]),
+                algorithms=aksis_caps.get("algorithms", {}),
+                model_presets=aksis_caps.get("model_presets", ["baseline", "fast", "strong", "custom"]),
+                preprocessing_strategies=preprocessing,
+                validation_options=aksis_caps.get("validation_options", ["holdout", "kfold", "stratified_kfold"]),
+                tuning_options=tuning,
+                scoring_options=aksis_caps.get("scoring_options", {}),
+                evaluation_capabilities=aksis_caps.get("evaluation_capabilities", []),
+                visualization_capabilities=aksis_caps.get("visualization_capabilities", []),
+                algorithm_metadata=aksis_caps.get("algorithm_metadata"),
+                parameter_schema=aksis_caps.get("parameter_schema")
+            )
+
+        raise RuntimeError("AKSIS kütüphanesi (src.core.capabilities) bulunamadı.")
 
     @staticmethod
     def _map_dataspec_to_metadata(spec: Any) -> DatasetMetadata:
