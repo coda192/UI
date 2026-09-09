@@ -138,6 +138,7 @@ def test_real_aksis_service_dataset_index_registry(monkeypatch):
         "reg_housing": mock_spec1,
         "cls_churn": mock_spec2
     }
+    monkeypatch.setattr(aksis_mod, "AKSIS_DATASET_AVAILABLE", True)
     monkeypatch.setattr(aksis_mod, "_DATASET_INDEX", test_index)
     monkeypatch.setattr(aksis_mod, "get_dataset", lambda dataset_id: test_index.get(dataset_id))
     
@@ -161,6 +162,25 @@ def test_real_aksis_service_dataset_index_registry(monkeypatch):
     assert housing_meta.id == "reg_housing"
     assert housing_meta.display_name == "Konut Fiyatları"
     assert housing_meta.target == "SalePrice"
+
+
+def test_real_aksis_service_datasets_missing_lib(monkeypatch):
+    import pytest
+    import backend.services.aksis_service as aksis_mod
+    from backend.services.aksis_service import RealAksisService
+
+    monkeypatch.setattr(aksis_mod, "AKSIS_DATASET_AVAILABLE", False)
+    monkeypatch.setattr(aksis_mod, "_DATASET_INDEX", None)
+    monkeypatch.setattr(aksis_mod, "get_dataset", None)
+
+    service = RealAksisService()
+    # Must NOT silently return []
+    with pytest.raises(RuntimeError, match="AKSIS dataset registry"):
+        service.list_datasets()
+
+    # Must NOT silently return None
+    with pytest.raises(RuntimeError, match="AKSIS dataset registry"):
+        service.get_dataset("reg_housing")
 
 
 def test_real_aksis_service_get_capabilities_mapping(monkeypatch):
@@ -224,7 +244,7 @@ def test_real_aksis_service_get_capabilities_missing_lib(monkeypatch):
     monkeypatch.setattr(aksis_mod, "aksis_get_capabilities", None)
 
     service = RealAksisService()
-    with pytest.raises(RuntimeError, match="AKSIS kütüphanesi"):
+    with pytest.raises(RuntimeError, match="AKSIS.*kütüphanesi"):
         service.get_capabilities()
 
 

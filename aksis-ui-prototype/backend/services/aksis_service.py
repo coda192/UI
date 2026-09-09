@@ -1,6 +1,7 @@
 import os
 import json
 import time
+import logging
 import threading
 from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
@@ -19,30 +20,38 @@ from backend.schemas import (
     InferenceResponse
 )
 
+logger = logging.getLogger("backend.services.aksis_service")
+
 # ==============================================================================
 # AKSIS CORE CAPABILITIES & DATASET REGISTRY IMPORT
 # ==============================================================================
 try:
     from src.core.capabilities import get_capabilities as aksis_get_capabilities
-except ImportError:
+    AKSIS_CORE_AVAILABLE = True
+    AKSIS_CORE_IMPORT_ERROR = None
+except ImportError as e:
     aksis_get_capabilities = None
+    AKSIS_CORE_AVAILABLE = False
+    AKSIS_CORE_IMPORT_ERROR = str(e)
 
 try:
     from src.data.dataset import (
+        _DATASET_INDEX,
+        get_dataset,
         REG_DATASETS,
         CLS_DATASETS,
         ANOMALY_DETECTION_DATSETS,
-        _DATASET_INDEX,
-        get_dataset
     )
     AKSIS_DATASET_AVAILABLE = True
-except ImportError:
+    AKSIS_DATASET_IMPORT_ERROR = None
+except ImportError as e:
     AKSIS_DATASET_AVAILABLE = False
+    _DATASET_INDEX = None
+    get_dataset = None
     REG_DATASETS = ()
     CLS_DATASETS = ()
     ANOMALY_DETECTION_DATSETS = ()
-    _DATASET_INDEX = {}
-    get_dataset = None
+    AKSIS_DATASET_IMPORT_ERROR = str(e)
 
 
 class RealAksisService(AksisService):
@@ -60,39 +69,77 @@ class RealAksisService(AksisService):
         AKSIS bünyesinde kayıtlı algoritmaları, görevleri, stratejileri ve
         algorithm_metadata sözlüğünü döner.
         """
-        if aksis_get_capabilities is not None:
-            raw = aksis_get_capabilities()
-            aksis_caps = raw.model_dump() if hasattr(raw, "model_dump") else dict(raw)
-
-            # Map aksis dictionary into CapabilityResponse contract
-            preprocessing = aksis_caps.get("preprocessing_strategies") or aksis_caps.get("preprocessing") or {}
-            tuning = aksis_caps.get("tuning_options") or aksis_caps.get("tuning") or {}
-
-            return CapabilityResponse(
-                learning_types=aksis_caps.get("learning_types", ["supervised", "unsupervised"]),
-                tasks=aksis_caps.get("tasks", {}),
-                modes=aksis_caps.get("modes", ["train", "tune", "predict"]),
-                algorithms=aksis_caps.get("algorithms", {}),
-                model_presets=aksis_caps.get("model_presets", ["baseline", "fast", "strong", "custom"]),
-                preprocessing_strategies=preprocessing,
-                validation_options=aksis_caps.get("validation_options", ["holdout", "kfold", "stratified_kfold"]),
-                tuning_options=tuning,
-                scoring_options=aksis_caps.get("scoring_options", {}),
-                evaluation_capabilities=aksis_caps.get("evaluation_capabilities", []),
-                visualization_capabilities=aksis_caps.get("visualization_capabilities", []),
-                algorithm_metadata=aksis_caps.get("algorithm_metadata"),
-                parameter_schema=aksis_caps.get("parameter_schema")
+        if aksis_get_capabilities is None:
+            err_msg = (
+                f"AKSIS yetenek kütüphanesi (src.core.capabilities) bulunamadı veya yüklenemedi: "
+                f"{AKSIS_CORE_IMPORT_ERROR}"
             )
+            logger.error(err_msg)
+            raise RuntimeError(err_msg)
 
-        raise RuntimeError("AKSIS kütüphanesi (src.core.capabilities) bulunamadı.")
+        aksis_caps = aksis_get_capabilities()
+        if hasattr(aksis_caps, "model_dump"):
+            aksis_caps = aksis_caps.model_dump()
+        elif hasattr(aksis_caps, "dict"):
+            aksis_caps = aksis_caps.dict()
+        elif not isinstance(aksis_caps, dict):
+            aksis_caps = dict(aksis_caps)
+
+        # Normalize AKSIS capability keys into CapabilityResponse contract
+        preprocessing = (
+            aksis_caps.get("preprocessing_strategies")
+            or aksis_caps.get("preprocessing")
+            or {}
+        )
+        tuning = (
+            aksis_caps.get("tuning_options")
+            or aksis_caps.get("tuning")
+            or {}
+        )
+        validation = (
+            aksis_caps.get("validation_options")
+            or aksis_caps.get("validation")
+            or ["holdout", "kfold", "stratified_kfold"]
+        )
+        scoring = (
+            aksis_caps.get("scoring_options")
+            or aksis_caps.get("scoring")
+            or {}
+        )
+        evaluation = (
+            aksis_caps.get("evaluation_capabilities")
+            or aksis_caps.get("evaluation")
+            or []
+        )
+        visualization = (
+            aksis_caps.get("visualization_capabilities")
+            or aksis_caps.get("visualization")
+            or []
+        )
+
+        return CapabilityResponse(
+            learning_types=aksis_caps.get("learning_types", ["supervised", "unsupervised"]),
+            tasks=aksis_caps.get("tasks", {}),
+            modes=aksis_caps.get("modes", ["train", "tune", "predict"]),
+            algorithms=aksis_caps.get("algorithms", {}),
+            model_presets=aksis_caps.get("model_presets", ["baseline", "fast", "strong", "custom"]),
+            preprocessing_strategies=preprocessing,
+            validation_options=validation,
+            tuning_options=tuning,
+            scoring_options=scoring,
+            evaluation_capabilities=evaluation,
+            visualization_capabilities=visualization,
+            algorithm_metadata=aksis_caps.get("algorithm_metadata"),
+            parameter_schema=aksis_caps.get("parameter_schema")
+        )
 
     @staticmethod
     def _map_dataspec_to_metadata(spec: Any) -> DatasetMetadata:
         """
         AKSIS DataSpec nesnesini DatasetMetadata şemasına dönüştürür.
-        Yalnızca API/UI için gerekli alanları eşler.
-        Veritabanı parolaları, kullanıcı bilgileri, host/port, data_query ve iç SQL
-        bağlantı detayları KESİNLİKLE dışarıya sızdırılmaz.
+        Yalnızca API/UI için güvenli sunum alanlarını eşler.
+        host, port, user, password, catalog, schema, http_schema ve data_query KESİNLİKLE dışarıya sızdırılmaz.
+        İstatistik veya açıklama uydurulmaz.
         """
         if isinstance(spec, dict):
             spec_id = spec.get("id", "")
@@ -140,25 +187,51 @@ class RealAksisService(AksisService):
 
     def list_datasets(self) -> List[DatasetMetadata]:
         """
-        PRIORITY 5: Gerçek AKSIS _DATASET_INDEX bünyesindeki veri setlerini listeler.
-        ID tekrarını (duplicate) önler ve güvenli DataSpec meta verilerini döner.
+        Gerçek AKSIS _DATASET_INDEX bünyesindeki veri setlerini listeler.
+        ID tekrarını önler ve güvenli DataSpec meta verilerini döner.
         """
-        return [self._map_dataspec_to_metadata(spec) for spec in _DATASET_INDEX.values()]
+        if not AKSIS_DATASET_AVAILABLE or _DATASET_INDEX is None:
+            err_msg = (
+                f"AKSIS dataset registry (src.data.dataset) bulunamadı veya yüklenemedi: "
+                f"{AKSIS_DATASET_IMPORT_ERROR}"
+            )
+            logger.error(err_msg)
+            raise RuntimeError(err_msg)
+
+        seen_ids = set()
+        datasets: List[DatasetMetadata] = []
+        for spec in _DATASET_INDEX.values():
+            meta = self._map_dataspec_to_metadata(spec)
+            if meta.id and meta.id not in seen_ids:
+                seen_ids.add(meta.id)
+                datasets.append(meta)
+        return datasets
 
     def get_dataset(self, dataset_id: str) -> DatasetMetadata:
         """
-        PRIORITY 5: get_dataset() fonksiyonu üzerinden tek bir veri setinin
+        get_dataset() fonksiyonu üzerinden tek bir veri setinin
         DataSpec meta verilerini çeker.
         """
-        if get_dataset is None:
-            raise ValueError(f"Dataset '{dataset_id}' bulunamadı (AKSIS kütüphanesi aktif değil).")
+        if not AKSIS_DATASET_AVAILABLE or get_dataset is None:
+            err_msg = (
+                f"AKSIS dataset registry (src.data.dataset) bulunamadı veya yüklenemedi: "
+                f"{AKSIS_DATASET_IMPORT_ERROR}"
+            )
+            logger.error(err_msg)
+            raise RuntimeError(err_msg)
+
         try:
             spec = get_dataset(dataset_id)
-            if spec is None:
-                raise ValueError(f"Dataset '{dataset_id}' bulunamadı.")
-            return self._map_dataspec_to_metadata(spec)
         except (KeyError, IndexError, ValueError):
+            spec = None
+
+        if spec is None and _DATASET_INDEX and dataset_id in _DATASET_INDEX:
+            spec = _DATASET_INDEX[dataset_id]
+
+        if spec is None:
             raise ValueError(f"Dataset '{dataset_id}' bulunamadı.")
+
+        return self._map_dataspec_to_metadata(spec)
 
     def create_experiment(self, req: ExperimentCreateRequest) -> ExperimentMetadata:
         """

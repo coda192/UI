@@ -78,6 +78,70 @@ def test_capabilities_real_aksis_provider(monkeypatch):
     assert data["algorithm_metadata"]["logreg"]["strengths"] == ["Fast"]
 
 
+def test_datasets_real_aksis_provider(monkeypatch):
+    import backend.services.aksis_service as aksis_mod
+    from types import SimpleNamespace
+
+    monkeypatch.setenv("AKSIS_PROVIDER", "aksis")
+
+    mock_spec1 = SimpleNamespace(
+        id="credit_card_fraud",
+        display_name="Kredi Kartı Dolandırıcılığı",
+        description="Gerçek zamanlı fraud tespiti",
+        source="oracle_db",
+        local_data=True,
+        target="Class",
+        columns_to_use=["Time", "Amount", "V1"],
+        # Sensitive fields that must NOT be exposed:
+        host="10.0.0.1",
+        port=1521,
+        user="oracle_user",
+        password="secret_password",
+        catalog="PROD",
+        schema="FINANCE",
+        http_schema="https",
+        data_query="SELECT * FROM secret_table"
+    )
+
+    test_index = {"credit_card_fraud": mock_spec1}
+    monkeypatch.setattr(aksis_mod, "AKSIS_DATASET_AVAILABLE", True)
+    monkeypatch.setattr(aksis_mod, "_DATASET_INDEX", test_index)
+    monkeypatch.setattr(aksis_mod, "get_dataset", lambda dataset_id: test_index.get(dataset_id))
+
+    # Test GET /api/v1/datasets
+    response = client.get("/api/v1/datasets")
+    assert response.status_code == 200
+    data = response.json()
+    assert isinstance(data, list)
+    assert len(data) == 1
+    ds = data[0]
+    assert ds["id"] == "credit_card_fraud"
+    assert ds["display_name"] == "Kredi Kartı Dolandırıcılığı"
+    assert ds["target"] == "Class"
+    assert ds["source"] == "oracle_db"
+    assert ds["columns_to_use"] == ["Time", "Amount", "V1"]
+
+    # Verify no sensitive credentials leaked
+    for sensitive in ["host", "port", "user", "password", "catalog", "schema", "http_schema", "data_query"]:
+        assert sensitive not in ds
+
+    # Test GET /api/v1/datasets/{dataset_id}
+    detail_resp = client.get("/api/v1/datasets/credit_card_fraud")
+    assert detail_resp.status_code == 200
+    detail = detail_resp.json()
+    assert detail["id"] == "credit_card_fraud"
+    assert detail["display_name"] == "Kredi Kartı Dolandırıcılığı"
+    assert detail["description"] == "Gerçek zamanlı fraud tespiti"
+    assert detail["target"] == "Class"
+    assert detail["source"] == "oracle_db"
+    for sensitive in ["host", "port", "user", "password", "catalog", "schema", "http_schema", "data_query"]:
+        assert sensitive not in detail
+
+    # Test 404 for unknown dataset
+    not_found = client.get("/api/v1/datasets/non_existent_dataset")
+    assert not_found.status_code == 404
+
+
 def test_parameter_schema_optional_contract():
     # Verify CapabilityResponse can be initialized without parameter_schema
     cap = CapabilityResponse(
