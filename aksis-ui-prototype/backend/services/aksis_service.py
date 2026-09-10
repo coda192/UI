@@ -288,9 +288,10 @@ class RealAksisService(AksisService):
     def _map_dataspec_to_metadata(spec: Any) -> DatasetMetadata:
         """
         AKSIS DataSpec nesnesini DatasetMetadata şemasına dönüştürür.
-        Yalnızca API/UI için güvenli sunum alanlarını eşler.
-        host, port, user, password, catalog, schema, http_schema ve data_query KESİNLİKLE dışarıya sızdırılmaz.
-        İstatistik veya açıklama uydurulmaz.
+        DataSpec sözleşmesinden yalnızca şu alanları eşler:
+          id, display_name, description, source, local_data, target, columns_to_use
+        DataSpec'te bulunmayan alanlar boş/None olarak ayarlanır:
+          row_count=None, column_count=None, columns=[], identifier_columns=[], compatible_tasks=[]
         """
         if isinstance(spec, dict):
             spec_id = spec.get("id", "")
@@ -300,11 +301,6 @@ class RealAksisService(AksisService):
             local_data = spec.get("local_data")
             target = spec.get("target")
             columns_to_use = spec.get("columns_to_use")
-            row_count = spec.get("row_count")
-            column_count = spec.get("column_count")
-            columns = spec.get("columns", [])
-            identifier_columns = spec.get("identifier_columns", [])
-            compatible_tasks = spec.get("compatible_tasks", [])
         else:
             spec_id = getattr(spec, "id", "")
             display_name = getattr(spec, "display_name", None)
@@ -313,13 +309,7 @@ class RealAksisService(AksisService):
             local_data = getattr(spec, "local_data", None)
             target = getattr(spec, "target", None)
             columns_to_use = getattr(spec, "columns_to_use", None)
-            row_count = getattr(spec, "row_count", None)
-            column_count = getattr(spec, "column_count", None)
-            columns = getattr(spec, "columns", [])
-            identifier_columns = getattr(spec, "identifier_columns", [])
-            compatible_tasks = getattr(spec, "compatible_tasks", [])
 
-        # password, user, host, port, catalog, schema, http_schema, data_query kasıtlı olarak hariç tutulmuştur
         return DatasetMetadata(
             id=spec_id,
             name=display_name or spec_id,
@@ -329,11 +319,11 @@ class RealAksisService(AksisService):
             local_data=local_data,
             target=target,
             columns_to_use=columns_to_use,
-            row_count=row_count,
-            column_count=column_count,
-            columns=columns if columns else [],
-            identifier_columns=identifier_columns if identifier_columns else [],
-            compatible_tasks=compatible_tasks if compatible_tasks else []
+            row_count=None,
+            column_count=None,
+            columns=[],
+            identifier_columns=[],
+            compatible_tasks=[]
         )
 
     def list_datasets(self) -> List[DatasetMetadata]:

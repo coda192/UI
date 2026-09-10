@@ -104,6 +104,13 @@ def test_real_aksis_service_dataspec_mapping_and_security():
     assert metadata.target == "Class"
     assert metadata.columns_to_use == ["Time", "Amount", "V1", "V2"]
     
+    # Verify non-DataSpec fields are set to empty/None
+    assert metadata.row_count is None
+    assert metadata.column_count is None
+    assert metadata.columns == []
+    assert metadata.identifier_columns == []
+    assert metadata.compatible_tasks == []
+    
     # Verify sensitive fields are NOT in the schema
     meta_dict = metadata.model_dump()
     for sensitive in ["host", "port", "user", "password", "catalog", "schema", "http_schema", "data_query"]:
