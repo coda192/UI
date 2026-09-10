@@ -68,6 +68,7 @@ class RealAksisService(AksisService):
         """
         AKSIS bünyesinde kayıtlı algoritmaları, görevleri, stratejileri ve
         algorithm_metadata sözlüğünü döner.
+        AKSIS sözlük yapısını API CapabilityResponse sözleşmesine normalize eder.
         """
         if aksis_get_capabilities is None:
             err_msg = (
@@ -77,60 +78,210 @@ class RealAksisService(AksisService):
             logger.error(err_msg)
             raise RuntimeError(err_msg)
 
-        aksis_caps = aksis_get_capabilities()
-        if hasattr(aksis_caps, "model_dump"):
-            aksis_caps = aksis_caps.model_dump()
-        elif hasattr(aksis_caps, "dict"):
-            aksis_caps = aksis_caps.dict()
-        elif not isinstance(aksis_caps, dict):
-            aksis_caps = dict(aksis_caps)
+        try:
+            raw = aksis_get_capabilities()
+        except Exception as e:
+            err_msg = f"aksis_get_capabilities() çağrısı başarısız oldu: {e}"
+            logger.error(err_msg, exc_info=True)
+            raise RuntimeError(err_msg) from e
 
-        # Normalize AKSIS capability keys into CapabilityResponse contract
-        preprocessing = (
+        if hasattr(raw, "model_dump"):
+            aksis_caps = raw.model_dump()
+        elif hasattr(raw, "dict"):
+            aksis_caps = raw.dict()
+        elif not isinstance(raw, dict):
+            aksis_caps = dict(raw)
+        else:
+            aksis_caps = raw
+
+        # 1. Normalize tasks: Convert flat list (or dict) into {"supervised": [...], "unsupervised": [...]}
+        raw_tasks = aksis_caps.get("tasks")
+        if isinstance(raw_tasks, dict):
+            tasks = {k: list(v) for k, v in raw_tasks.items() if isinstance(v, (list, tuple, set))}
+        elif isinstance(raw_tasks, (list, tuple, set)):
+            supervised_candidates = {"classification", "regression"}
+            unsupervised_candidates = {"anomaly_detection", "clustering"}
+            sup = [t for t in raw_tasks if t in supervised_candidates]
+            unsup = [t for t in raw_tasks if t in unsupervised_candidates]
+            other = [t for t in raw_tasks if t not in supervised_candidates and t not in unsupervised_candidates]
+            if other:
+                sup.extend(other)
+            tasks = {}
+            if sup:
+                tasks["supervised"] = sup
+            if unsup:
+                tasks["unsupervised"] = unsup
+        else:
+            tasks = {}
+
+        # 2. Normalize learning_types
+        raw_lt = aksis_caps.get("learning_types")
+        if isinstance(raw_lt, (list, tuple, set)):
+            learning_types = list(raw_lt)
+        elif tasks:
+            learning_types = list(tasks.keys())
+        else:
+            learning_types = ["supervised", "unsupervised"]
+
+        # 3. Normalize modes
+        raw_modes = aksis_caps.get("modes")
+        if isinstance(raw_modes, (list, tuple, set)):
+            modes = list(raw_modes)
+        else:
+            modes = ["train", "tune", "predict"]
+
+        # 4. Normalize algorithms: Dict[str, List[str]]
+        raw_algorithms = aksis_caps.get("algorithms", {})
+        algorithms: Dict[str, List[str]] = {}
+        if isinstance(raw_algorithms, dict):
+            for ak, av in raw_algorithms.items():
+                if isinstance(av, (list, tuple, set)):
+                    algorithms[ak] = list(av)
+                else:
+                    algorithms[ak] = [str(av)]
+
+        # 5. Normalize model_presets: Flatten nested dict or list into a single ordered list
+        raw_presets = aksis_caps.get("model_presets")
+        model_presets = []
+        seen_presets = set()
+        if isinstance(raw_presets, dict):
+            for group in raw_presets.values():
+                items = group if isinstance(group, (list, tuple, set)) else [group]
+                for p in items:
+                    if p and p not in seen_presets:
+                        seen_presets.add(p)
+                        model_presets.append(p)
+        elif isinstance(raw_presets, (list, tuple, set)):
+            for p in raw_presets:
+                if p and p not in seen_presets:
+                    seen_presets.add(p)
+                    model_presets.append(p)
+        if not model_presets:
+            model_presets = ["baseline", "fast", "strong", "custom"]
+
+        # 6. Normalize preprocessing_strategies: Dict[str, List[str]]
+        raw_prep = (
             aksis_caps.get("preprocessing_strategies")
             or aksis_caps.get("preprocessing")
             or {}
         )
-        tuning = (
-            aksis_caps.get("tuning_options")
-            or aksis_caps.get("tuning")
-            or {}
-        )
-        validation = (
+        preprocessing_strategies: Dict[str, List[str]] = {}
+        if isinstance(raw_prep, dict):
+            for pk, pv in raw_prep.items():
+                if isinstance(pv, (list, tuple, set)):
+                    preprocessing_strategies[pk] = list(pv)
+                elif isinstance(pv, dict):
+                    sub_items = []
+                    for sub in pv.values():
+                        if isinstance(sub, (list, tuple, set)):
+                            sub_items.extend(sub)
+                    preprocessing_strategies[pk] = list(dict.fromkeys(sub_items))
+                else:
+                    preprocessing_strategies[pk] = [str(pv)]
+
+        # Ensure missing_value key exists without fabricating fake strategies
+        if "missing_value" not in preprocessing_strategies:
+            preprocessing_strategies["missing_value"] = []
+
+        # 7. Normalize validation_options: List[str]
+        raw_validation = (
             aksis_caps.get("validation_options")
             or aksis_caps.get("validation")
             or ["holdout", "kfold", "stratified_kfold"]
         )
-        scoring = (
-            aksis_caps.get("scoring_options")
-            or aksis_caps.get("scoring")
+        if isinstance(raw_validation, (list, tuple, set)):
+            validation_options = list(raw_validation)
+        elif isinstance(raw_validation, dict):
+            val_items = []
+            for sub in raw_validation.values():
+                if isinstance(sub, (list, tuple, set)):
+                    val_items.extend(sub)
+            validation_options = list(dict.fromkeys(val_items))
+        else:
+            validation_options = ["holdout", "kfold", "stratified_kfold"]
+
+        # 8. Normalize tuning_options: Merge nested dicts (e.g. supervised/unsupervised) into flat Dict[str, List[str]]
+        raw_tuning = (
+            aksis_caps.get("tuning_options")
+            or aksis_caps.get("tuning")
             or {}
         )
-        evaluation = (
+        tuning_options: Dict[str, List[str]] = {}
+        if isinstance(raw_tuning, dict):
+            is_nested = any(isinstance(v, dict) for v in raw_tuning.values())
+            if is_nested:
+                for sub_dict in raw_tuning.values():
+                    if isinstance(sub_dict, dict):
+                        for opt_key, opt_vals in sub_dict.items():
+                            if opt_key not in tuning_options:
+                                tuning_options[opt_key] = []
+                            items = opt_vals if isinstance(opt_vals, (list, tuple, set)) else [opt_vals]
+                            for it in items:
+                                if it not in tuning_options[opt_key]:
+                                    tuning_options[opt_key].append(it)
+            else:
+                for opt_key, opt_vals in raw_tuning.items():
+                    if isinstance(opt_vals, (list, tuple, set)):
+                        tuning_options[opt_key] = list(opt_vals)
+                    else:
+                        tuning_options[opt_key] = [str(opt_vals)]
+
+        # 9. Normalize scoring_options: Dict[str, List[str]] without fabricating values
+        raw_scoring = (
+            aksis_caps.get("scoring_options")
+            or aksis_caps.get("scoring")
+            or aksis_caps.get("metrics")
+            or aksis_caps.get("objectives")
+            or {}
+        )
+        scoring_options: Dict[str, List[str]] = {}
+        if isinstance(raw_scoring, dict):
+            for sk, sv in raw_scoring.items():
+                if isinstance(sv, (list, tuple, set)):
+                    scoring_options[sk] = list(sv)
+                elif isinstance(sv, dict):
+                    scoring_options[sk] = list(sv.keys())
+                else:
+                    scoring_options[sk] = [str(sv)]
+
+        # If AKSIS does not expose direct scoring per task, initialize empty list per known task
+        for task_list in tasks.values():
+            for t in task_list:
+                scoring_options.setdefault(t, [])
+
+        # 10. Evaluation & Visualization Capabilities
+        raw_eval = (
             aksis_caps.get("evaluation_capabilities")
             or aksis_caps.get("evaluation")
             or []
         )
-        visualization = (
+        evaluation_capabilities = list(raw_eval) if isinstance(raw_eval, (list, tuple, set)) else []
+
+        raw_vis = (
             aksis_caps.get("visualization_capabilities")
             or aksis_caps.get("visualization")
             or []
         )
+        visualization_capabilities = list(raw_vis) if isinstance(raw_vis, (list, tuple, set)) else []
+
+        # 11. Algorithm metadata & parameter schema (passed directly from AKSIS)
+        algorithm_metadata = aksis_caps.get("algorithm_metadata")
+        parameter_schema = aksis_caps.get("parameter_schema")
 
         return CapabilityResponse(
-            learning_types=aksis_caps.get("learning_types", ["supervised", "unsupervised"]),
-            tasks=aksis_caps.get("tasks", {}),
-            modes=aksis_caps.get("modes", ["train", "tune", "predict"]),
-            algorithms=aksis_caps.get("algorithms", {}),
-            model_presets=aksis_caps.get("model_presets", ["baseline", "fast", "strong", "custom"]),
-            preprocessing_strategies=preprocessing,
-            validation_options=validation,
-            tuning_options=tuning,
-            scoring_options=scoring,
-            evaluation_capabilities=evaluation,
-            visualization_capabilities=visualization,
-            algorithm_metadata=aksis_caps.get("algorithm_metadata"),
-            parameter_schema=aksis_caps.get("parameter_schema")
+            learning_types=learning_types,
+            tasks=tasks,
+            modes=modes,
+            algorithms=algorithms,
+            model_presets=model_presets,
+            preprocessing_strategies=preprocessing_strategies,
+            validation_options=validation_options,
+            tuning_options=tuning_options,
+            scoring_options=scoring_options,
+            evaluation_capabilities=evaluation_capabilities,
+            visualization_capabilities=visualization_capabilities,
+            algorithm_metadata=algorithm_metadata,
+            parameter_schema=parameter_schema
         )
 
     @staticmethod

@@ -52,12 +52,18 @@ def test_capabilities_real_aksis_provider(monkeypatch):
     monkeypatch.setenv("AKSIS_PROVIDER", "aksis")
     mock_caps = {
         "learning_types": ["supervised", "unsupervised"],
-        "tasks": {"supervised": ["classification"]},
-        "modes": ["train"],
+        "tasks": ["classification", "regression", "anomaly_detection"],  # Real AKSIS flat list
+        "modes": ["train", "tune", "predict"],
         "algorithms": {"classification": ["logreg"]},
-        "model_presets": ["baseline"],
-        "preprocessing": {"missing_value": ["mean"]},
-        "tuning": {"sampler": ["tpe"]},
+        "model_presets": {  # Real AKSIS dict presets
+            "supervised": ["baseline", "fast"],
+            "unsupervised": ["fast", "custom"]
+        },
+        "preprocessing": {"encoding": ["onehot"]},  # No missing_value key
+        "tuning": {  # Real AKSIS nested tuning
+            "supervised": {"sampler": ["tpe", "random"], "pruner": ["none", "median"]},
+            "unsupervised": {"sampler": ["random"]}
+        },
         "algorithm_metadata": {
             "logreg": {
                 "display_name": "Logistic Regression",
@@ -76,6 +82,14 @@ def test_capabilities_real_aksis_provider(monkeypatch):
     assert "logreg" in data["algorithm_metadata"]
     assert data["algorithm_metadata"]["logreg"]["display_name"] == "Logistic Regression"
     assert data["algorithm_metadata"]["logreg"]["strengths"] == ["Fast"]
+
+    # Verify normalized fields
+    assert data["tasks"]["supervised"] == ["classification", "regression"]
+    assert data["tasks"]["unsupervised"] == ["anomaly_detection"]
+    assert data["model_presets"] == ["baseline", "fast", "custom"]
+    assert data["preprocessing_strategies"]["missing_value"] == []
+    assert data["tuning_options"]["sampler"] == ["tpe", "random"]
+    assert data["tuning_options"]["pruner"] == ["none", "median"]
 
 
 def test_datasets_real_aksis_provider(monkeypatch):

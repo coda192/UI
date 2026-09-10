@@ -248,3 +248,90 @@ def test_real_aksis_service_get_capabilities_missing_lib(monkeypatch):
         service.get_capabilities()
 
 
+def test_real_aksis_service_get_capabilities_real_shape_normalization(monkeypatch):
+    """
+    Test normalization of real AKSIS capability structures:
+    - Flat task list -> {"supervised": [...], "unsupervised": [...]}
+    - Dict model_presets -> flat list
+    - Preprocessing without missing_value -> missing_value: []
+    - Nested tuning -> merged flat Dict[str, List[str]]
+    - Missing scoring -> empty list per task without fabricated values
+    - Algorithm metadata preserved
+    """
+    import backend.services.aksis_service as aksis_mod
+    from backend.services.aksis_service import RealAksisService
+
+    real_aksis_raw_caps = {
+        "learning_types": ["supervised", "unsupervised"],
+        "tasks": ["classification", "regression", "anomaly_detection"],  # Flat list from AKSIS
+        "modes": ["train", "tune", "predict"],
+        "algorithms": {
+            "classification": ["logreg", "random_forest_c"],
+            "regression": ["ridge"],
+            "anomaly_detection": ["isolation_forest"]
+        },
+        "model_presets": {  # Nested/dict presets from AKSIS
+            "supervised": ["baseline", "fast", "strong"],
+            "unsupervised": ["fast", "custom"]
+        },
+        "preprocessing": {  # No missing_value key in raw AKSIS
+            "encoding": ["onehot", "ordinal"],
+            "scaling": ["standard", "minmax"]
+        },
+        "tuning": {  # Nested tuning options by learning type
+            "supervised": {
+                "sampler": ["tpe", "random"],
+                "pruner": ["none", "median", "sha"]
+            },
+            "unsupervised": {
+                "sampler": ["random"],
+                "pruner": ["none"]
+            }
+        },
+        "algorithm_metadata": {
+            "logreg": {
+                "display_name": "Lojistik Regresyon",
+                "description": "Doğrusal sınıflandırma",
+                "strengths": ["Hızlı"],
+                "limitations": ["Doğrusal"],
+                "best_for": ["Baseline"]
+            }
+        }
+    }
+
+    monkeypatch.setattr(aksis_mod, "aksis_get_capabilities", lambda: real_aksis_raw_caps)
+
+    service = RealAksisService()
+    res = service.get_capabilities()
+
+    # 1. Tasks partitioned
+    assert isinstance(res.tasks, dict)
+    assert res.tasks["supervised"] == ["classification", "regression"]
+    assert res.tasks["unsupervised"] == ["anomaly_detection"]
+
+    # 2. Model presets flattened and ordered
+    assert isinstance(res.model_presets, list)
+    assert res.model_presets == ["baseline", "fast", "strong", "custom"]
+
+    # 3. Preprocessing has missing_value as empty list
+    assert res.preprocessing_strategies["missing_value"] == []
+    assert res.preprocessing_strategies["encoding"] == ["onehot", "ordinal"]
+
+    # 4. Tuning merged and deduplicated
+    assert isinstance(res.tuning_options, dict)
+    assert res.tuning_options["sampler"] == ["tpe", "random"]
+    assert res.tuning_options["pruner"] == ["none", "median", "sha"]
+
+    # 5. Scoring options contains empty lists per active task (no fabricated metrics)
+    assert "classification" in res.scoring_options
+    assert res.scoring_options["classification"] == []
+    assert "anomaly_detection" in res.scoring_options
+    assert res.scoring_options["anomaly_detection"] == []
+
+    # 6. Algorithm metadata preserved
+    assert res.algorithm_metadata is not None
+    assert "logreg" in res.algorithm_metadata
+    assert res.algorithm_metadata["logreg"].display_name == "Lojistik Regresyon"
+
+
+
