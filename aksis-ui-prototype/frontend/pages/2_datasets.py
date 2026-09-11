@@ -93,29 +93,49 @@ try:
             
         st.divider()
         
-        # 4. ÇALIŞMA ZAMANI İSTATİSTİKLERİ (Runtime / Data-Derived Statistics)
-        st.subheader("📊 Çalışma Zamanı Veri İstatistikleri & Sütun Analizi")
+        # 4. VERİ PROFİLİ & İSTATİSTİKSEL ÖZET (Independent Profiling Pipeline Slot)
+        st.subheader("📊 Veri Profili & İstatistiksel Özet")
         
-        row_count = ds.get("row_count")
-        col_count = ds.get("column_count")
+        profile = client.get_dataset_profile(selected_id)
         
-        c_m1, c_m2 = st.columns(2)
-        with c_m1:
-            st.metric("Satır Sayısı", f"{row_count:,}" if row_count is not None else "Hesaplanmadı / Mevcut Değil")
-        with c_m2:
-            st.metric("Sütun Sayısı", str(col_count) if col_count is not None else "Hesaplanmadı / Mevcut Değil")
-            
-        columns_data = ds.get("columns", [])
-        if columns_data:
-            df_cols = pd.DataFrame(columns_data)
-            df_cols = df_cols.rename(columns={
-                "name": "Sütun Adı",
-                "dtype": "Veri Tipi",
-                "missing_count": "Eksik Değer Sayısı"
-            })
-            st.dataframe(df_cols, use_container_width=True)
+        if not profile:
+            st.info("Henüz analiz çalıştırılmadı.")
         else:
-            st.caption("Detaylı sütun şeması ve eksik değer istatistikleri henüz hesaplanmamış.")
+            p_m1, p_m2, p_m3, p_m4, p_m5 = st.columns(5)
+            with p_m1:
+                row_count = profile.get("row_count", 0)
+                st.metric("Satır Sayısı", f"{row_count:,}")
+            with p_m2:
+                col_count = profile.get("column_count", 0)
+                st.metric("Sütun Sayısı", str(col_count))
+            with p_m3:
+                mem_mb = profile.get("memory_usage_mb", 0.0)
+                st.metric("Bellek Kullanımı", f"{mem_mb:.2f} MB")
+            with p_m4:
+                cols_missing = profile.get("columns_with_missing", 0)
+                st.metric("Eksik Değerli Sütun", str(cols_missing))
+            with p_m5:
+                total_missing = profile.get("total_missing_values", 0)
+                st.metric("Toplam Eksik Değer", f"{total_missing:,}")
+                
+            cols_list = profile.get("columns", [])
+            if cols_list:
+                df_profile_cols = pd.DataFrame(cols_list)
+                display_cols = ["name", "detected_type", "dtype", "missing_count", "missing_percentage"]
+                existing_cols = [c for c in display_cols if c in df_profile_cols.columns]
+                if existing_cols:
+                    df_profile_cols = df_profile_cols[existing_cols]
+                rename_map = {
+                    "name": "Sütun Adı",
+                    "detected_type": "Algılanan Tip",
+                    "dtype": "Veri Tipi",
+                    "missing_count": "Eksik Değer Sayısı",
+                    "missing_percentage": "Eksik Değer (%)"
+                }
+                df_profile_cols = df_profile_cols.rename(columns=rename_map)
+                st.dataframe(df_profile_cols, use_container_width=True)
+            else:
+                st.caption("Sütun profil bilgisi bulunamadı.")
 
 except AksisAPIError as e:
     st.error(f"Hata: {str(e)}")

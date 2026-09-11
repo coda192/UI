@@ -23,3 +23,22 @@ class DatasetMetadata(BaseModel):
     columns: List[ColumnMetadata] = []
     identifier_columns: List[str] = []
     compatible_tasks: List[str] = []
+
+
+class ColumnProfile(BaseModel):
+    name: str
+    detected_type: str
+    dtype: Optional[str] = None
+    missing_count: int
+    missing_percentage: float
+
+
+class DatasetProfileResponse(BaseModel):
+    dataset_id: str
+    row_count: int
+    column_count: int
+    memory_usage_mb: float
+    columns_with_missing: int
+    total_missing_values: int
+    columns: List[ColumnProfile]
+

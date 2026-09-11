@@ -46,6 +46,13 @@ class AksisClient:
     def get_dataset(self, dataset_id: str) -> Dict[str, Any]:
         return self._request("GET", f"/datasets/{dataset_id}")
         
+    def get_dataset_profile(self, dataset_id: str) -> Optional[Dict[str, Any]]:
+        try:
+            return self._request("GET", f"/datasets/{dataset_id}/profile")
+        except AksisAPIError:
+            return None
+
+        
     def create_experiment(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         return self._request("POST", "/experiments", json=payload)
         

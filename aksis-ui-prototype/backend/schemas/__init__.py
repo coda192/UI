@@ -1,5 +1,5 @@
 from .capability import CapabilityResponse, AlgorithmMetadata
-from .dataset import DatasetMetadata, ColumnMetadata
+from .dataset import DatasetMetadata, ColumnMetadata, ColumnProfile, DatasetProfileResponse
 from .experiment import ExperimentCreateRequest, ExperimentMetadata, ModelConfig
 from .result import ExperimentResultResponse, VisualizationData, MetricsData, ArtifactReference
 from .artifact import ArtifactMetadata
@@ -10,6 +10,8 @@ __all__ = [
     "AlgorithmMetadata",
     "DatasetMetadata",
     "ColumnMetadata",
+    "ColumnProfile",
+    "DatasetProfileResponse",
     "ExperimentCreateRequest",
     "ExperimentMetadata",
     "ModelConfig",

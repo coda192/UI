@@ -340,3 +340,64 @@ def test_inference():
     assert response.status_code == 200
     data = response.json()
     assert "predictions_preview" in data
+
+
+def test_dataset_profile_schema_and_endpoint(monkeypatch):
+    from backend.schemas import ColumnProfile, DatasetProfileResponse
+
+    # 1. Schema direct validation
+    col = ColumnProfile(
+        name="age",
+        detected_type="numeric",
+        dtype="float64",
+        missing_count=5,
+        missing_percentage=2.5
+    )
+    assert col.name == "age"
+    assert col.detected_type == "numeric"
+    assert col.dtype == "float64"
+    assert col.missing_count == 5
+    assert col.missing_percentage == 2.5
+
+    profile = DatasetProfileResponse(
+        dataset_id="test_ds",
+        row_count=1000,
+        column_count=10,
+        memory_usage_mb=1.25,
+        columns_with_missing=1,
+        total_missing_values=5,
+        columns=[col]
+    )
+    assert profile.dataset_id == "test_ds"
+    assert profile.row_count == 1000
+    assert profile.column_count == 10
+    assert profile.memory_usage_mb == 1.25
+    assert profile.columns_with_missing == 1
+    assert profile.total_missing_values == 5
+    assert len(profile.columns) == 1
+
+    # 2. Endpoint default 404 (when analysis not yet run)
+    resp_404 = client.get("/api/v1/datasets/test_ds/profile")
+    assert resp_404.status_code == 404
+    assert "Henüz analiz çalıştırılmadı" in resp_404.json()["detail"]
+
+    # 3. Endpoint success when service provides profile
+    from backend.api.deps import get_service
+    from backend.main import app
+    class MockServiceWithProfile:
+        def get_dataset_profile(self, dataset_id: str):
+            return profile
+
+    app.dependency_overrides[get_service] = lambda: MockServiceWithProfile()
+    try:
+        resp_success = client.get("/api/v1/datasets/test_ds/profile")
+        assert resp_success.status_code == 200
+        res_data = resp_success.json()
+        assert res_data["dataset_id"] == "test_ds"
+        assert res_data["row_count"] == 1000
+        assert res_data["memory_usage_mb"] == 1.25
+        assert len(res_data["columns"]) == 1
+        assert res_data["columns"][0]["name"] == "age"
+    finally:
+        app.dependency_overrides.clear()
+
