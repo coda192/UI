@@ -117,10 +117,13 @@ def test_datasets_real_aksis_provider(monkeypatch):
         data_query="SELECT * FROM secret_table"
     )
 
-    test_index = {"credit_card_fraud": mock_spec1}
-    monkeypatch.setattr(aksis_mod, "AKSIS_DATASET_AVAILABLE", True)
-    monkeypatch.setattr(aksis_mod, "_DATASET_INDEX", test_index)
-    monkeypatch.setattr(aksis_mod, "get_dataset", lambda dataset_id: test_index.get(dataset_id))
+    test_datasets = [mock_spec1]
+    mock_dict = {"credit_card_fraud": mock_spec1}
+    monkeypatch.setattr(
+        aksis_mod,
+        "_get_aksis_dataset_accessors",
+        lambda: (lambda: test_datasets, lambda ds_id: mock_dict.get(ds_id))
+    )
 
     # Test GET /api/v1/datasets
     response = client.get("/api/v1/datasets")

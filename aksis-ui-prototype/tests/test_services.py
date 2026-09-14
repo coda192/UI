@@ -70,7 +70,7 @@ def test_mock_service_anomaly_detection_results():
     meta_labeled.status = "completed"
     
 def test_real_aksis_service_dataspec_mapping_and_security():
-    from backend.services.aksis_service import RealAksisService, _DATASET_INDEX
+    from backend.services.aksis_service import RealAksisService
     from types import SimpleNamespace
     
     # Simulate a raw DataSpec object with sensitive backend fields
@@ -93,7 +93,8 @@ def test_real_aksis_service_dataspec_mapping_and_security():
         data_query="SELECT * FROM secret_transactions_table"
     )
     
-    metadata = RealAksisService._map_dataspec_to_metadata(raw_spec)
+    service = RealAksisService()
+    metadata = service._map_dataspec_to_metadata(raw_spec)
     
     # Verify UI-safe fields
     assert metadata.id == "credit_card_fraud"
@@ -116,7 +117,7 @@ def test_real_aksis_service_dataspec_mapping_and_security():
     for sensitive in ["host", "port", "user", "password", "catalog", "schema", "http_schema", "data_query"]:
         assert sensitive not in meta_dict, f"Sensitive field '{sensitive}' must not be exposed!"
 
-def test_real_aksis_service_dataset_index_registry(monkeypatch):
+def test_real_aksis_service_dataset_registry_accessors(monkeypatch):
     import backend.services.aksis_service as aksis_mod
     from backend.services.aksis_service import RealAksisService
     from types import SimpleNamespace
@@ -140,14 +141,14 @@ def test_real_aksis_service_dataset_index_registry(monkeypatch):
         columns_to_use=None
     )
     
-    # Populate _DATASET_INDEX
-    test_index = {
-        "reg_housing": mock_spec1,
-        "cls_churn": mock_spec2
-    }
-    monkeypatch.setattr(aksis_mod, "AKSIS_DATASET_AVAILABLE", True)
-    monkeypatch.setattr(aksis_mod, "_DATASET_INDEX", test_index)
-    monkeypatch.setattr(aksis_mod, "get_dataset", lambda dataset_id: test_index.get(dataset_id))
+    test_datasets = [mock_spec1, mock_spec2]
+    mock_dict = {s.id: s for s in test_datasets}
+
+    monkeypatch.setattr(
+        aksis_mod,
+        "_get_aksis_dataset_accessors",
+        lambda: (lambda: test_datasets, lambda ds_id: mock_dict.get(ds_id))
+    )
     
     service = RealAksisService()
     datasets = service.list_datasets()
@@ -170,23 +171,24 @@ def test_real_aksis_service_dataset_index_registry(monkeypatch):
     assert housing_meta.display_name == "Konut Fiyatları"
     assert housing_meta.target == "SalePrice"
 
+    # Verify not found raises ValueError
+    try:
+        service.get_dataset("non_existent")
+        assert False, "Should raise ValueError"
+    except ValueError:
+        pass
 
-def test_real_aksis_service_datasets_missing_lib(monkeypatch):
+
+def test_real_aksis_service_datasets_missing_lib():
     import pytest
-    import backend.services.aksis_service as aksis_mod
     from backend.services.aksis_service import RealAksisService
 
-    monkeypatch.setattr(aksis_mod, "AKSIS_DATASET_AVAILABLE", False)
-    monkeypatch.setattr(aksis_mod, "_DATASET_INDEX", None)
-    monkeypatch.setattr(aksis_mod, "get_dataset", None)
-
     service = RealAksisService()
-    # Must NOT silently return []
-    with pytest.raises(RuntimeError, match="AKSIS dataset registry"):
+    # In this environment without AKSIS src, calling accessors raises RuntimeError
+    with pytest.raises(RuntimeError, match="AKSIS dataset registry is unavailable"):
         service.list_datasets()
 
-    # Must NOT silently return None
-    with pytest.raises(RuntimeError, match="AKSIS dataset registry"):
+    with pytest.raises(RuntimeError, match="AKSIS dataset registry is unavailable"):
         service.get_dataset("reg_housing")
 
 

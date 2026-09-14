@@ -23,7 +23,7 @@ from backend.schemas import (
 logger = logging.getLogger("backend.services.aksis_service")
 
 # ==============================================================================
-# AKSIS CORE CAPABILITIES & DATASET REGISTRY IMPORT
+# AKSIS CORE CAPABILITIES IMPORT
 # ==============================================================================
 try:
     from src.core.capabilities import get_capabilities as aksis_get_capabilities
@@ -34,24 +34,20 @@ except ImportError as e:
     AKSIS_CORE_AVAILABLE = False
     AKSIS_CORE_IMPORT_ERROR = str(e)
 
-try:
-    from src.data.dataset import (
-        _DATASET_INDEX,
-        get_dataset,
-        REG_DATASETS,
-        CLS_DATASETS,
-        ANOMALY_DETECTION_DATSETS,
-    )
-    AKSIS_DATASET_AVAILABLE = True
-    AKSIS_DATASET_IMPORT_ERROR = None
-except ImportError as e:
-    AKSIS_DATASET_AVAILABLE = False
-    _DATASET_INDEX = None
-    get_dataset = None
-    REG_DATASETS = ()
-    CLS_DATASETS = ()
-    ANOMALY_DETECTION_DATSETS = ()
-    AKSIS_DATASET_IMPORT_ERROR = str(e)
+
+def _get_aksis_dataset_accessors():
+    try:
+        from src.core.registries.data_registry import (
+            get_all_datasets,
+            get_dataset,
+        )
+    except ImportError as exc:
+        raise RuntimeError(
+            "AKSIS dataset registry is unavailable. "
+            "Real provider requires the AKSIS src package."
+        ) from exc
+
+    return get_all_datasets, get_dataset
 
 
 class RealAksisService(AksisService):
@@ -284,13 +280,12 @@ class RealAksisService(AksisService):
             parameter_schema=parameter_schema
         )
 
-    @staticmethod
-    def _map_dataspec_to_metadata(spec: Any) -> DatasetMetadata:
+    def _map_dataspec_to_metadata(self, spec: Any) -> DatasetMetadata:
         """
         AKSIS DataSpec nesnesini DatasetMetadata şemasına dönüştürür.
-        DataSpec sözleşmesinden yalnızca şu alanları eşler:
+        Yalnızca şu alanları eşler:
           id, display_name, description, source, local_data, target, columns_to_use
-        DataSpec'te bulunmayan alanlar boş/None olarak ayarlanır:
+        Çalışma zamanı/analiz alanları boş/None olarak ayarlanır:
           row_count=None, column_count=None, columns=[], identifier_columns=[], compatible_tasks=[]
         """
         if isinstance(spec, dict):
@@ -310,6 +305,11 @@ class RealAksisService(AksisService):
             target = getattr(spec, "target", None)
             columns_to_use = getattr(spec, "columns_to_use", None)
 
+        if hasattr(source, "value"):
+            source = source.value
+        elif source is not None:
+            source = str(source)
+
         return DatasetMetadata(
             id=spec_id,
             name=display_name or spec_id,
@@ -323,51 +323,24 @@ class RealAksisService(AksisService):
             column_count=None,
             columns=[],
             identifier_columns=[],
-            compatible_tasks=[]
+            compatible_tasks=[],
         )
 
     def list_datasets(self) -> List[DatasetMetadata]:
-        """
-        Gerçek AKSIS _DATASET_INDEX bünyesindeki veri setlerini listeler.
-        ID tekrarını önler ve güvenli DataSpec meta verilerini döner.
-        """
-        if not AKSIS_DATASET_AVAILABLE or _DATASET_INDEX is None:
-            err_msg = (
-                f"AKSIS dataset registry (src.data.dataset) bulunamadı veya yüklenemedi: "
-                f"{AKSIS_DATASET_IMPORT_ERROR}"
-            )
-            logger.error(err_msg)
-            raise RuntimeError(err_msg)
+        get_all_datasets, _ = _get_aksis_dataset_accessors()
 
-        seen_ids = set()
-        datasets: List[DatasetMetadata] = []
-        for spec in _DATASET_INDEX.values():
-            meta = self._map_dataspec_to_metadata(spec)
-            if meta.id and meta.id not in seen_ids:
-                seen_ids.add(meta.id)
-                datasets.append(meta)
-        return datasets
+        return [
+            self._map_dataspec_to_metadata(spec)
+            for spec in get_all_datasets()
+        ]
 
     def get_dataset(self, dataset_id: str) -> DatasetMetadata:
-        """
-        get_dataset() fonksiyonu üzerinden tek bir veri setinin
-        DataSpec meta verilerini çeker.
-        """
-        if not AKSIS_DATASET_AVAILABLE or get_dataset is None:
-            err_msg = (
-                f"AKSIS dataset registry (src.data.dataset) bulunamadı veya yüklenemedi: "
-                f"{AKSIS_DATASET_IMPORT_ERROR}"
-            )
-            logger.error(err_msg)
-            raise RuntimeError(err_msg)
+        _, get_aksis_dataset = _get_aksis_dataset_accessors()
 
         try:
-            spec = get_dataset(dataset_id)
-        except (KeyError, IndexError, ValueError):
+            spec = get_aksis_dataset(dataset_id)
+        except (KeyError, IndexError):
             spec = None
-
-        if spec is None and _DATASET_INDEX and dataset_id in _DATASET_INDEX:
-            spec = _DATASET_INDEX[dataset_id]
 
         if spec is None:
             raise ValueError(f"Dataset '{dataset_id}' bulunamadı.")
