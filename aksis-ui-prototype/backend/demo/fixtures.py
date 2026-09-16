@@ -1,4 +1,12 @@
-from backend.schemas import CapabilityResponse, AlgorithmMetadata, DatasetMetadata, ColumnMetadata
+from backend.schemas import (
+    CapabilityResponse,
+    AlgorithmMetadata,
+    DatasetMetadata,
+    ColumnMetadata,
+    ColumnInfo,
+    CorrelationInfo,
+    DatasetInfoResponse
+)
 
 ALGORITHM_METADATA = {
     # --- Classification ---
@@ -504,3 +512,89 @@ DATASETS = [
         compatible_tasks=["anomaly_detection"]
     )
 ]
+
+
+def generate_mock_dataset_info(dataset_id: str) -> DatasetInfoResponse:
+    return DatasetInfoResponse(
+        dataset_id=dataset_id,
+        row_count=1000,
+        column_count=6,
+        missing_value_count=18,
+        missing_column_count=2,
+        type_counts={
+            "numeric": 4,
+            "categorical": 2
+        },
+        columns=[
+            ColumnInfo(
+                name="Age",
+                dtype="int64",
+                primitive_type="numeric",
+                subtype="integer",
+                unique_count=65,
+                missing_count=12,
+                missing_rate=0.012,
+                flags=[]
+            ),
+            ColumnInfo(
+                name="Income",
+                dtype="float64",
+                primitive_type="numeric",
+                subtype="continuous",
+                unique_count=820,
+                missing_count=6,
+                missing_rate=0.006,
+                flags=["outliers"]
+            ),
+            ColumnInfo(
+                name="Department",
+                dtype="object",
+                primitive_type="categorical",
+                subtype="nominal",
+                unique_count=5,
+                missing_count=0,
+                missing_rate=0.0,
+                flags=[]
+            ),
+            ColumnInfo(
+                name="Education",
+                dtype="object",
+                primitive_type="categorical",
+                subtype="ordinal",
+                unique_count=4,
+                missing_count=0,
+                missing_rate=0.0,
+                flags=[]
+            ),
+            ColumnInfo(
+                name="Tenure",
+                dtype="int64",
+                primitive_type="numeric",
+                subtype="integer",
+                unique_count=10,
+                missing_count=0,
+                missing_rate=0.0,
+                flags=[]
+            ),
+            ColumnInfo(
+                name="ConstantCol",
+                dtype="float64",
+                primitive_type="numeric",
+                subtype="constant",
+                unique_count=1,
+                missing_count=0,
+                missing_rate=0.0,
+                flags=["constant"]
+            )
+        ],
+        correlation=CorrelationInfo(
+            columns=["Age", "Income", "Tenure", "ConstantCol"],
+            matrix=[
+                [1.0, 0.42, 0.65, None],
+                [0.42, 1.0, 0.31, None],
+                [0.65, 0.31, 1.0, None],
+                [None, None, None, None]
+            ]
+        )
+    )
+

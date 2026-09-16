@@ -42,3 +42,31 @@ class DatasetProfileResponse(BaseModel):
     total_missing_values: int
     columns: List[ColumnProfile]
 
+
+class ColumnInfo(BaseModel):
+    name: str
+    dtype: str
+    primitive_type: str
+    subtype: Optional[str] = None
+    unique_count: int
+    missing_count: int
+    missing_rate: float
+    flags: List[str] = []
+
+
+class CorrelationInfo(BaseModel):
+    columns: List[str] = []
+    matrix: List[List[Optional[float]]] = []
+
+
+class DatasetInfoResponse(BaseModel):
+    dataset_id: str
+    row_count: int
+    column_count: int
+    missing_value_count: int
+    missing_column_count: int
+    type_counts: dict = {}
+    columns: List[ColumnInfo] = []
+    correlation: CorrelationInfo = CorrelationInfo()
+
+

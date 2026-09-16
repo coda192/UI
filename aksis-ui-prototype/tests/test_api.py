@@ -404,3 +404,172 @@ def test_dataset_profile_schema_and_endpoint(monkeypatch):
     finally:
         app.dependency_overrides.clear()
 
+
+def test_dataset_info_schema_validation():
+    from backend.schemas import DatasetInfoResponse, ColumnInfo, CorrelationInfo
+
+    # Validate schema handles None cells in correlation matrix
+    data = {
+        "dataset_id": "test_ds",
+        "row_count": 100,
+        "column_count": 2,
+        "missing_value_count": 5,
+        "missing_column_count": 1,
+        "type_counts": {"numerical": 1, "categorical": 1},
+        "columns": [
+            {
+                "name": "col1",
+                "dtype": "int64",
+                "primitive_type": "numerical",
+                "subtype": "integer",
+                "unique_count": 50,
+                "missing_count": 0,
+                "missing_rate": 0.0,
+                "flags": ["numerical"],
+            },
+            {
+                "name": "col2",
+                "dtype": "object",
+                "primitive_type": "categorical",
+                "subtype": "nominal",
+                "unique_count": 5,
+                "missing_count": 5,
+                "missing_rate": 0.05,
+                "flags": ["has_missing"],
+            },
+        ],
+        "correlation": {
+            "columns": ["col1", "col2"],
+            "matrix": [
+                [1.0, None],
+                [None, 1.0],
+            ],
+        },
+    }
+    info = DatasetInfoResponse(**data)
+    assert info.dataset_id == "test_ds"
+    assert len(info.columns) == 2
+    assert info.correlation.matrix[0][1] is None
+    assert info.correlation.matrix[1][0] is None
+    assert info.correlation.matrix[0][0] == 1.0
+
+
+def test_get_dataset_info_mock_endpoint():
+    response = client.get("/api/v1/datasets/ds_class_01/info")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["dataset_id"] == "ds_class_01"
+    assert data["row_count"] > 0
+    assert data["column_count"] > 0
+    assert "type_counts" in data
+    assert isinstance(data["columns"], list)
+    assert len(data["columns"]) == data["column_count"]
+    assert "correlation" in data
+    assert "matrix" in data["correlation"]
+    # Check column info structure
+    col0 = data["columns"][0]
+    assert "name" in col0
+    assert "dtype" in col0
+    assert "primitive_type" in col0
+    assert "subtype" in col0
+    assert "unique_count" in col0
+    assert "missing_count" in col0
+    assert "missing_rate" in col0
+    assert "flags" in col0
+
+
+def test_get_dataset_info_refresh_param():
+    response = client.get("/api/v1/datasets/ds_class_01/info?refresh=true")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["dataset_id"] == "ds_class_01"
+
+
+def test_get_dataset_info_not_found():
+    response = client.get("/api/v1/datasets/non_existent_dataset/info")
+    assert response.status_code == 404
+
+
+def test_get_dataset_info_real_aksis_provider(monkeypatch):
+    import sys
+    from unittest.mock import MagicMock
+
+    monkeypatch.setenv("AKSIS_PROVIDER", "aksis")
+
+    called_args = {}
+
+    def fake_get_dataset_info(dataset_id: str, refresh: bool = False):
+        called_args["dataset_id"] = dataset_id
+        called_args["refresh"] = refresh
+        if dataset_id == "non_existent":
+            raise KeyError("not found")
+        return {
+            "dataset_id": dataset_id,
+            "row_count": 500,
+            "column_count": 3,
+            "missing_value_count": 2,
+            "missing_column_count": 1,
+            "type_counts": {"numerical": 2, "categorical": 1},
+            "columns": [
+                {
+                    "name": "col_a",
+                    "dtype": "float64",
+                    "primitive_type": "numerical",
+                    "subtype": "continuous",
+                    "unique_count": 300,
+                    "missing_count": 0,
+                    "missing_rate": 0.0,
+                    "flags": ["numerical"],
+                },
+                {
+                    "name": "col_b",
+                    "dtype": "int64",
+                    "primitive_type": "numerical",
+                    "subtype": "integer",
+                    "unique_count": 10,
+                    "missing_count": 2,
+                    "missing_rate": 0.004,
+                    "flags": ["has_missing"],
+                },
+                {
+                    "name": "col_c",
+                    "dtype": "object",
+                    "primitive_type": "categorical",
+                    "subtype": "nominal",
+                    "unique_count": 2,
+                    "missing_count": 0,
+                    "missing_rate": 0.0,
+                    "flags": ["categorical"],
+                },
+            ],
+            "correlation": {
+                "columns": ["col_a", "col_b"],
+                "matrix": [[1.0, 0.42], [0.42, 1.0]],
+            },
+        }
+
+    mock_mod = MagicMock()
+    mock_mod.get_dataset_info = fake_get_dataset_info
+    monkeypatch.setitem(sys.modules, "src", MagicMock())
+    monkeypatch.setitem(sys.modules, "src.core", MagicMock())
+    monkeypatch.setitem(sys.modules, "src.core.data_processing", MagicMock())
+    monkeypatch.setitem(sys.modules, "src.core.data_processing.data_info", mock_mod)
+
+    # Test GET /api/v1/datasets/ds_real_01/info
+    resp = client.get("/api/v1/datasets/ds_real_01/info")
+    assert resp.status_code == 200
+    assert called_args == {"dataset_id": "ds_real_01", "refresh": False}
+    data = resp.json()
+    assert data["dataset_id"] == "ds_real_01"
+    assert data["row_count"] == 500
+
+    # Test refresh=true query parameter
+    resp_refresh = client.get("/api/v1/datasets/ds_real_01/info?refresh=true")
+    assert resp_refresh.status_code == 200
+    assert called_args == {"dataset_id": "ds_real_01", "refresh": True}
+
+    # Test 404 for unknown dataset in real aksis provider
+    resp_404 = client.get("/api/v1/datasets/non_existent/info")
+    assert resp_404.status_code == 404
+
+

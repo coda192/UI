@@ -93,49 +93,137 @@ try:
             
         st.divider()
         
-        # 4. VERİ PROFİLİ & İSTATİSTİKSEL ÖZET (Independent Profiling Pipeline Slot)
-        st.subheader("📊 Veri Profili & İstatistiksel Özet")
+        # 4. VERİ SETİ ANALİZİ (Dataset Analysis)
+        st.subheader("🔬 Veri Seti Analizi (Dataset Analysis)")
         
-        profile = client.get_dataset_profile(selected_id)
-        
-        if not profile:
-            st.info("Henüz analiz çalıştırılmadı.")
-        else:
-            p_m1, p_m2, p_m3, p_m4, p_m5 = st.columns(5)
-            with p_m1:
-                row_count = profile.get("row_count", 0)
-                st.metric("Satır Sayısı", f"{row_count:,}")
-            with p_m2:
-                col_count = profile.get("column_count", 0)
-                st.metric("Sütun Sayısı", str(col_count))
-            with p_m3:
-                mem_mb = profile.get("memory_usage_mb", 0.0)
-                st.metric("Bellek Kullanımı", f"{mem_mb:.2f} MB")
-            with p_m4:
-                cols_missing = profile.get("columns_with_missing", 0)
-                st.metric("Eksik Değerli Sütun", str(cols_missing))
-            with p_m5:
-                total_missing = profile.get("total_missing_values", 0)
-                st.metric("Toplam Eksik Değer", f"{total_missing:,}")
-                
-            cols_list = profile.get("columns", [])
+        btn_col1, btn_col2 = st.columns([8, 2])
+        with btn_col2:
+            refresh_clicked = st.button("🔄 Analizi Yenile", key=f"btn_refresh_{selected_id}", use_container_width=True)
+            
+        with st.spinner("Veri seti analizi yükleniyor..."):
+            try:
+                info = client.get_dataset_info(selected_id, refresh=refresh_clicked)
+            except AksisAPIError as e:
+                st.error(f"Veri analizi alınamadı: {str(e)}")
+                info = None
+
+        if info:
+            # 4.1. ÖZET METRİK KARTLARI (Summary Cards)
+            m1, m2, m3, m4 = st.columns(4)
+            with m1:
+                st.metric("Satır Sayısı (Rows)", f"{info.get('row_count', 0):,}")
+            with m2:
+                st.metric("Sütun Sayısı (Columns)", f"{info.get('column_count', 0):,}")
+            with m3:
+                st.metric("Toplam Eksik Değer", f"{info.get('missing_value_count', 0):,}")
+            with m4:
+                st.metric("Eksik Değerli Sütun", f"{info.get('missing_column_count', 0):,}")
+            
+            # Sütun Tipi Dağılımı (Type Distribution)
+            type_counts = info.get("type_counts", {})
+            if type_counts:
+                import plotly.express as px
+                fig_types = px.pie(
+                    names=list(type_counts.keys()),
+                    values=list(type_counts.values()),
+                    hole=0.4,
+                    title="Algılanan Sütun Tipi Dağılımı",
+                    color_discrete_sequence=px.colors.qualitative.Safe
+                )
+                fig_types.update_traces(textposition="inside", textinfo="percent+label")
+                fig_types.update_layout(height=260, margin=dict(t=35, b=10, l=10, r=10))
+                st.plotly_chart(fig_types, use_container_width=True)
+
+            st.divider()
+
+            # 4.2. SÜTUN PROFİLLERİ (Column Profiles)
+            st.markdown("#### 📋 Sütun Profilleri (Column Profiles)")
+            cols_list = info.get("columns", [])
             if cols_list:
-                df_profile_cols = pd.DataFrame(cols_list)
-                display_cols = ["name", "detected_type", "dtype", "missing_count", "missing_percentage"]
-                existing_cols = [c for c in display_cols if c in df_profile_cols.columns]
-                if existing_cols:
-                    df_profile_cols = df_profile_cols[existing_cols]
-                rename_map = {
-                    "name": "Sütun Adı",
-                    "detected_type": "Algılanan Tip",
-                    "dtype": "Veri Tipi",
-                    "missing_count": "Eksik Değer Sayısı",
-                    "missing_percentage": "Eksik Değer (%)"
-                }
-                df_profile_cols = df_profile_cols.rename(columns=rename_map)
+                df_profile_cols = pd.DataFrame([
+                    {
+                        "Sütun Adı": c.get("name"),
+                        "Algılanan Tip": c.get("primitive_type"),
+                        "Alt Tip": c.get("subtype") or "-",
+                        "Veri Tipi": c.get("dtype"),
+                        "Benzersiz Değer": f"{c.get('unique_count', 0):,}",
+                        "Eksik Değer": f"{c.get('missing_count', 0):,}",
+                        "Eksik Oranı (%)": f"{(c.get('missing_rate', 0.0) * 100):.2f}%",
+                        "Etiketler (Flags)": ", ".join(c.get("flags", [])) if c.get("flags") else "-"
+                    }
+                    for c in cols_list
+                ])
                 st.dataframe(df_profile_cols, use_container_width=True)
+                
+                # Eksik Değer Grafiği (Yalnızca eksik değer içeren sütunlar)
+                missing_cols = [c for c in cols_list if c.get("missing_count", 0) > 0]
+                if missing_cols:
+                    import plotly.express as px
+                    df_missing = pd.DataFrame([
+                        {
+                            "Sütun": c.get("name"),
+                            "Eksik Sayısı": c.get("missing_count", 0),
+                            "Eksik Oranı (%)": round(c.get("missing_rate", 0.0) * 100, 2)
+                        }
+                        for c in missing_cols
+                    ]).sort_values(by="Eksik Sayısı", ascending=True)
+
+                    fig_missing = px.bar(
+                        df_missing,
+                        x="Eksik Sayısı",
+                        y="Sütun",
+                        orientation="h",
+                        text="Eksik Sayısı",
+                        hover_data=["Eksik Oranı (%)"],
+                        color="Eksik Oranı (%)",
+                        color_continuous_scale="Reds",
+                        title="Eksik Değer Dağılımı (Yalnızca Eksik Değer İçeren Sütunlar)"
+                    )
+                    fig_missing.update_layout(height=max(180, len(missing_cols) * 35), margin=dict(t=35, b=10, l=10, r=10))
+                    st.plotly_chart(fig_missing, use_container_width=True)
+                else:
+                    st.caption("✅ Veri setinde hiçbir sütunda eksik değer bulunmamaktadır.")
             else:
                 st.caption("Sütun profil bilgisi bulunamadı.")
 
+            st.divider()
+
+            # 4.3. PEARSON KORELASYON ANALİZİ (Pearson Correlation Matrix)
+            st.markdown("#### 📈 Pearson Korelasyon Matrisi (Pearson Correlation Matrix)")
+            corr = info.get("correlation", {})
+            corr_cols = corr.get("columns", [])
+            corr_matrix = corr.get("matrix", [])
+
+            if corr_cols and corr_matrix and len(corr_cols) > 1:
+                import plotly.graph_objects as go
+                text_matrix = [
+                    [f"{val:.2f}" if val is not None else "-" for val in row]
+                    for row in corr_matrix
+                ]
+                fig_corr = go.Figure(
+                    data=go.Heatmap(
+                        z=corr_matrix,
+                        x=corr_cols,
+                        y=corr_cols,
+                        text=text_matrix,
+                        texttemplate="%{text}",
+                        textfont={"size": 10},
+                        colorscale="RdBu_r",
+                        zmin=-1.0,
+                        zmax=1.0,
+                        hoverongaps=False,
+                        hovertemplate="<b>%{y}</b> ile <b>%{x}</b><br>Korelasyon: %{text}<extra></extra>"
+                    )
+                )
+                fig_corr.update_layout(
+                    title="Pearson Korelasyon Isı Haritası",
+                    height=max(360, len(corr_cols) * 45),
+                    margin=dict(t=40, b=10, l=10, r=10)
+                )
+                st.plotly_chart(fig_corr, use_container_width=True)
+            else:
+                st.info("Korelasyon matrisi için yeterli sayıda sayısal sütun bulunmuyor.")
+
 except AksisAPIError as e:
     st.error(f"Hata: {str(e)}")
+

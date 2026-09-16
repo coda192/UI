@@ -26,6 +26,10 @@ class AksisService(ABC):
         pass
         
     @abstractmethod
+    def get_dataset_info(self, dataset_id: str, refresh: bool = False):
+        pass
+        
+    @abstractmethod
     def create_experiment(self, req: ExperimentCreateRequest) -> ExperimentMetadata:
         pass
         

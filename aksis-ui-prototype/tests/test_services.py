@@ -343,4 +343,111 @@ def test_real_aksis_service_get_capabilities_real_shape_normalization(monkeypatc
     assert res.algorithm_metadata["logreg"].display_name == "Lojistik Regresyon"
 
 
+def test_mock_service_get_dataset_info():
+    import pytest
+    from backend.services.mock_service import MockAksisService
+    from backend.schemas import DatasetInfoResponse
+
+    service = MockAksisService()
+    info = service.get_dataset_info("ds_class_01")
+    assert isinstance(info, DatasetInfoResponse)
+    assert info.dataset_id == "ds_class_01"
+    assert info.row_count > 0
+    assert info.column_count > 0
+    assert len(info.columns) == info.column_count
+    assert info.correlation is not None
+    assert len(info.correlation.matrix) == len(info.correlation.columns)
+
+    with pytest.raises(ValueError, match="not found|bulunamadı"):
+        service.get_dataset_info("non_existent_dataset")
+
+
+def test_real_aksis_service_get_dataset_info(monkeypatch):
+    import sys
+    import pytest
+    from unittest.mock import MagicMock
+    from backend.services.aksis_service import RealAksisService
+    from backend.schemas import DatasetInfoResponse
+
+    service = RealAksisService()
+
+    # 1. When src package is unavailable (ImportError) -> raises RuntimeError
+    monkeypatch.delitem(sys.modules, "src.core.data_processing.data_info", raising=False)
+    monkeypatch.delitem(sys.modules, "src.core.data_processing", raising=False)
+    monkeypatch.delitem(sys.modules, "src.core", raising=False)
+    monkeypatch.delitem(sys.modules, "src", raising=False)
+
+    with pytest.raises(RuntimeError, match="requires the AKSIS src package"):
+        service.get_dataset_info("test_ds")
+
+    # 2. When src package is available
+    call_records = {}
+
+    def fake_get_dataset_info(dataset_id: str, refresh: bool = False):
+        call_records["dataset_id"] = dataset_id
+        call_records["refresh"] = refresh
+        if dataset_id == "missing_id":
+            raise KeyError("not found")
+        if dataset_id == "none_id":
+            return None
+        return {
+            "dataset_id": dataset_id,
+            "row_count": 1000,
+            "column_count": 2,
+            "missing_value_count": 10,
+            "missing_column_count": 1,
+            "type_counts": {"numerical": 2},
+            "columns": [
+                {
+                    "name": "feat1",
+                    "dtype": "float64",
+                    "primitive_type": "numerical",
+                    "subtype": "continuous",
+                    "unique_count": 800,
+                    "missing_count": 0,
+                    "missing_rate": 0.0,
+                    "flags": ["numerical"],
+                },
+                {
+                    "name": "feat2",
+                    "dtype": "int64",
+                    "primitive_type": "numerical",
+                    "subtype": "integer",
+                    "unique_count": 100,
+                    "missing_count": 10,
+                    "missing_rate": 0.01,
+                    "flags": ["has_missing"],
+                },
+            ],
+            "correlation": {
+                "columns": ["feat1", "feat2"],
+                "matrix": [[1.0, None], [None, 1.0]],
+            },
+        }
+
+    mock_mod = MagicMock()
+    mock_mod.get_dataset_info = fake_get_dataset_info
+    monkeypatch.setitem(sys.modules, "src", MagicMock())
+    monkeypatch.setitem(sys.modules, "src.core", MagicMock())
+    monkeypatch.setitem(sys.modules, "src.core.data_processing", MagicMock())
+    monkeypatch.setitem(sys.modules, "src.core.data_processing.data_info", mock_mod)
+
+    # Call with refresh=True
+    info = service.get_dataset_info("ds_real", refresh=True)
+    assert isinstance(info, DatasetInfoResponse)
+    assert call_records == {"dataset_id": "ds_real", "refresh": True}
+    assert info.dataset_id == "ds_real"
+    assert info.row_count == 1000
+    assert info.correlation.matrix[0][1] is None
+
+    # Unknown dataset raises ValueError
+    with pytest.raises(ValueError, match="bulunamadı"):
+        service.get_dataset_info("missing_id")
+
+    # None return raises ValueError
+    with pytest.raises(ValueError, match="bulunamadı"):
+        service.get_dataset_info("none_id")
+
+
+
 

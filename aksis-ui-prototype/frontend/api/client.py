@@ -1,6 +1,6 @@
 import requests
 import os
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 
 API_BASE_URL = os.getenv("API_BASE_URL", "http://127.0.0.1:8000/api/v1")
 
@@ -46,6 +46,10 @@ class AksisClient:
     def get_dataset(self, dataset_id: str) -> Dict[str, Any]:
         return self._request("GET", f"/datasets/{dataset_id}")
         
+    def get_dataset_info(self, dataset_id: str, refresh: bool = False) -> Dict[str, Any]:
+        params = {"refresh": "true"} if refresh else {}
+        return self._request("GET", f"/datasets/{dataset_id}/info", params=params)
+
     def get_dataset_profile(self, dataset_id: str) -> Optional[Dict[str, Any]]:
         try:
             return self._request("GET", f"/datasets/{dataset_id}/profile")

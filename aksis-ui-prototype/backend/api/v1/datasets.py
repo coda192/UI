@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from typing import List
-from backend.schemas import DatasetMetadata, DatasetProfileResponse
+from backend.schemas import DatasetMetadata, DatasetProfileResponse, DatasetInfoResponse
 from backend.services.base import AksisService
 from backend.api.deps import get_service
 
@@ -16,6 +16,15 @@ def get_dataset(dataset_id: str, service: AksisService = Depends(get_service)):
         return service.get_dataset(dataset_id)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+@router.get("/{dataset_id}/info", response_model=DatasetInfoResponse)
+def get_dataset_info(dataset_id: str, refresh: bool = False, service: AksisService = Depends(get_service)):
+    try:
+        return service.get_dataset_info(dataset_id, refresh=refresh)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except RuntimeError as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/{dataset_id}/profile", response_model=DatasetProfileResponse)
 def get_dataset_profile(dataset_id: str, service: AksisService = Depends(get_service)):

@@ -10,6 +10,7 @@ from backend.services.base import AksisService
 from backend.schemas import (
     CapabilityResponse,
     DatasetMetadata,
+    DatasetInfoResponse,
     ExperimentCreateRequest,
     ExperimentMetadata,
     ExperimentResultResponse,
@@ -346,6 +347,34 @@ class RealAksisService(AksisService):
             raise ValueError(f"Dataset '{dataset_id}' bulunamadı.")
 
         return self._map_dataspec_to_metadata(spec)
+
+    def get_dataset_info(
+        self,
+        dataset_id: str,
+        refresh: bool = False,
+    ) -> DatasetInfoResponse:
+        try:
+            from src.core.data_processing.data_info import (
+                get_dataset_info as aksis_get_dataset_info,
+            )
+        except ImportError as exc:
+            raise RuntimeError(
+                "AKSIS dataset info is unavailable. "
+                "Real provider requires the AKSIS src package."
+            ) from exc
+
+        try:
+            result = aksis_get_dataset_info(
+                dataset_id,
+                refresh=refresh,
+            )
+        except (KeyError, ValueError) as exc:
+            raise ValueError(f"Dataset '{dataset_id}' bulunamadı.") from exc
+
+        if result is None:
+            raise ValueError(f"Dataset '{dataset_id}' bulunamadı.")
+
+        return DatasetInfoResponse(**result)
 
     def create_experiment(self, req: ExperimentCreateRequest) -> ExperimentMetadata:
         """

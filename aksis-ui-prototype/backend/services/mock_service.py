@@ -7,6 +7,7 @@ import time
 from backend.schemas import (
     CapabilityResponse,
     DatasetMetadata,
+    DatasetInfoResponse,
     ExperimentCreateRequest,
     ExperimentMetadata,
     ExperimentResultResponse,
@@ -15,7 +16,7 @@ from backend.schemas import (
     InferenceResponse
 )
 from backend.services.base import AksisService
-from backend.demo import CAPABILITIES, DATASETS, generate_mock_result
+from backend.demo import CAPABILITIES, DATASETS, generate_mock_result, generate_mock_dataset_info
 
 class MockAksisService(AksisService):
     def __init__(self):
@@ -33,6 +34,10 @@ class MockAksisService(AksisService):
             if ds.id == dataset_id:
                 return ds
         raise ValueError(f"Dataset {dataset_id} not found")
+
+    def get_dataset_info(self, dataset_id: str, refresh: bool = False) -> DatasetInfoResponse:
+        self.get_dataset(dataset_id)
+        return generate_mock_dataset_info(dataset_id)
         
     def create_experiment(self, req: ExperimentCreateRequest) -> ExperimentMetadata:
         exp_id = f"exp_{uuid.uuid4().hex[:8]}"
