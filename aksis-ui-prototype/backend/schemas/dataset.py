@@ -1,5 +1,10 @@
+import sys
 from pydantic import BaseModel
 from typing import List, Optional
+
+if sys.version_info < (3, 9):
+    from typing import Dict as dict
+
 
 class ColumnMetadata(BaseModel):
     name: str
