@@ -449,5 +449,77 @@ def test_real_aksis_service_get_dataset_info(monkeypatch):
         service.get_dataset_info("none_id")
 
 
+def test_mock_service_get_dataset_info_statistics():
+    from backend.services.mock_service import MockAksisService
+
+    service = MockAksisService()
+    info = service.get_dataset_info("ds_class_01")
+
+    cols = {c.name: c for c in info.columns}
+    assert "Age" in cols
+    assert cols["Age"].statistics is not None
+    assert cols["Age"].statistics["count"] == 988.0
+    assert cols["Age"].statistics["skewness"] == 0.35
+
+    assert "Tenure" in cols
+    assert cols["Tenure"].statistics is not None
+    assert cols["Tenure"].statistics["50%"] == cols["Tenure"].statistics["75%"] == 3.0
+    assert cols["Tenure"].statistics["skewness"] is None
+
+    assert "ConstantCol" in cols
+    assert cols["ConstantCol"].statistics is not None
+    assert cols["ConstantCol"].statistics["min"] == cols["ConstantCol"].statistics["max"] == 42.0
+
+    assert "Department" in cols
+    assert cols["Department"].statistics is None
+
+
+def test_dataset_info_no_numeric_columns():
+    from backend.schemas import DatasetInfoResponse, ColumnInfo, CorrelationInfo
+
+    # Dataset with only categorical / text columns (0 numeric columns)
+    info = DatasetInfoResponse(
+        dataset_id="ds_categorical_only",
+        row_count=200,
+        column_count=2,
+        missing_value_count=0,
+        missing_column_count=0,
+        type_counts={"categorical": 2},
+        columns=[
+            ColumnInfo(
+                name="CategoryA",
+                dtype="object",
+                primitive_type="categorical",
+                subtype="nominal",
+                unique_count=4,
+                missing_count=0,
+                missing_rate=0.0,
+                flags=[],
+                statistics=None
+            ),
+            ColumnInfo(
+                name="CategoryB",
+                dtype="object",
+                primitive_type="categorical",
+                subtype="ordinal",
+                unique_count=3,
+                missing_count=0,
+                missing_rate=0.0,
+                flags=[],
+                statistics=None
+            ),
+        ],
+        correlation=CorrelationInfo(columns=[], matrix=[])
+    )
+
+    numeric_cols = [
+        c for c in info.columns
+        if c.primitive_type in ["numeric", "numerical"]
+    ]
+    assert len(numeric_cols) == 0
+    assert len(info.columns) == 2
+
+
+
 
 

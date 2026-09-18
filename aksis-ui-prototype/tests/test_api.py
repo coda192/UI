@@ -573,3 +573,137 @@ def test_get_dataset_info_real_aksis_provider(monkeypatch):
     assert resp_404.status_code == 404
 
 
+def test_dataset_info_statistics_schema():
+    from backend.schemas import ColumnInfo
+
+    # 1. Full statistics
+    col_full = ColumnInfo(
+        name="test_num",
+        dtype="float64",
+        primitive_type="numeric",
+        unique_count=100,
+        missing_count=0,
+        missing_rate=0.0,
+        flags=[],
+        statistics={
+            "count": 100.0,
+            "mean": 35.2,
+            "std": 8.4,
+            "min": 18.0,
+            "25%": 29.0,
+            "50%": 34.0,
+            "75%": 41.0,
+            "max": 67.0,
+            "skewness": 0.65,
+        },
+    )
+    assert col_full.statistics is not None
+    assert col_full.statistics["count"] == 100.0
+    assert col_full.statistics["25%"] == 29.0
+    assert col_full.statistics["skewness"] == 0.65
+
+    # 2. Undefined skewness
+    col_undefined_skew = ColumnInfo(
+        name="test_undef",
+        dtype="int64",
+        primitive_type="numeric",
+        unique_count=10,
+        missing_count=0,
+        missing_rate=0.0,
+        flags=[],
+        statistics={
+            "count": 50.0,
+            "mean": 10.0,
+            "std": 2.0,
+            "min": 5.0,
+            "25%": 8.0,
+            "50%": 10.0,
+            "75%": 12.0,
+            "max": 15.0,
+            "skewness": None,
+        },
+    )
+    assert col_undefined_skew.statistics["skewness"] is None
+
+    # 3. Missing statistics
+    col_no_stats = ColumnInfo(
+        name="test_no_stats",
+        dtype="object",
+        primitive_type="categorical",
+        unique_count=5,
+        missing_count=0,
+        missing_rate=0.0,
+        flags=[],
+        statistics=None,
+    )
+    assert col_no_stats.statistics is None
+
+    # 4. Constant column
+    col_const = ColumnInfo(
+        name="test_const",
+        dtype="float64",
+        primitive_type="numeric",
+        unique_count=1,
+        missing_count=0,
+        missing_rate=0.0,
+        flags=["constant"],
+        statistics={
+            "count": 100.0,
+            "mean": 42.0,
+            "std": 0.0,
+            "min": 42.0,
+            "25%": 42.0,
+            "50%": 42.0,
+            "75%": 42.0,
+            "max": 42.0,
+            "skewness": None,
+        },
+    )
+    assert col_const.statistics["min"] == col_const.statistics["max"] == 42.0
+    assert col_const.statistics["std"] == 0.0
+
+
+def test_mock_endpoint_returns_numeric_statistics():
+    response = client.get("/api/v1/datasets/ds_class_01/info")
+    assert response.status_code == 200
+    data = response.json()
+    columns = {c["name"]: c for c in data["columns"]}
+
+    # Age: complete statistics
+    assert "Age" in columns
+    age_stats = columns["Age"]["statistics"]
+    assert age_stats is not None
+    assert age_stats["count"] == 988.0
+    assert age_stats["mean"] == 38.5
+    assert age_stats["std"] == 10.2
+    assert age_stats["min"] == 18.0
+    assert age_stats["25%"] == 30.0
+    assert age_stats["50%"] == 37.0
+    assert age_stats["75%"] == 46.0
+    assert age_stats["max"] == 65.0
+    assert age_stats["skewness"] == 0.35
+
+    # Department: categorical without statistics
+    assert "Department" in columns
+    assert columns["Department"]["statistics"] is None
+
+    # Tenure: repeated quartile values and undefined skewness
+    assert "Tenure" in columns
+    tenure_stats = columns["Tenure"]["statistics"]
+    assert tenure_stats is not None
+    assert tenure_stats["50%"] == tenure_stats["75%"] == 3.0
+    assert tenure_stats["skewness"] is None
+
+    # ConstantCol: constant column
+    assert "ConstantCol" in columns
+    const_stats = columns["ConstantCol"]["statistics"]
+    assert const_stats is not None
+    assert const_stats["min"] == const_stats["max"] == 42.0
+    assert const_stats["std"] == 0.0
+
+    # Score: unprofiled numeric without statistics
+    assert "Score" in columns
+    assert columns["Score"]["statistics"] is None
+
+
+

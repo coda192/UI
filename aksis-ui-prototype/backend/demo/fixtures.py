@@ -518,11 +518,11 @@ def generate_mock_dataset_info(dataset_id: str) -> DatasetInfoResponse:
     return DatasetInfoResponse(
         dataset_id=dataset_id,
         row_count=1000,
-        column_count=6,
+        column_count=7,
         missing_value_count=18,
         missing_column_count=2,
         type_counts={
-            "numeric": 4,
+            "numeric": 5,
             "categorical": 2
         },
         columns=[
@@ -534,7 +534,18 @@ def generate_mock_dataset_info(dataset_id: str) -> DatasetInfoResponse:
                 unique_count=65,
                 missing_count=12,
                 missing_rate=0.012,
-                flags=[]
+                flags=[],
+                statistics={
+                    "count": 988.0,
+                    "mean": 38.5,
+                    "std": 10.2,
+                    "min": 18.0,
+                    "25%": 30.0,
+                    "50%": 37.0,
+                    "75%": 46.0,
+                    "max": 65.0,
+                    "skewness": 0.35
+                }
             ),
             ColumnInfo(
                 name="Income",
@@ -544,7 +555,18 @@ def generate_mock_dataset_info(dataset_id: str) -> DatasetInfoResponse:
                 unique_count=820,
                 missing_count=6,
                 missing_rate=0.006,
-                flags=["outliers"]
+                flags=["outliers"],
+                statistics={
+                    "count": 994.0,
+                    "mean": 54200.0,
+                    "std": 18500.0,
+                    "min": 18000.0,
+                    "25%": 38000.0,
+                    "50%": 51000.0,
+                    "75%": 68000.0,
+                    "max": 145000.0,
+                    "skewness": 1.25
+                }
             ),
             ColumnInfo(
                 name="Department",
@@ -554,7 +576,8 @@ def generate_mock_dataset_info(dataset_id: str) -> DatasetInfoResponse:
                 unique_count=5,
                 missing_count=0,
                 missing_rate=0.0,
-                flags=[]
+                flags=[],
+                statistics=None
             ),
             ColumnInfo(
                 name="Education",
@@ -564,7 +587,8 @@ def generate_mock_dataset_info(dataset_id: str) -> DatasetInfoResponse:
                 unique_count=4,
                 missing_count=0,
                 missing_rate=0.0,
-                flags=[]
+                flags=[],
+                statistics=None
             ),
             ColumnInfo(
                 name="Tenure",
@@ -574,7 +598,18 @@ def generate_mock_dataset_info(dataset_id: str) -> DatasetInfoResponse:
                 unique_count=10,
                 missing_count=0,
                 missing_rate=0.0,
-                flags=[]
+                flags=[],
+                statistics={
+                    "count": 1000.0,
+                    "mean": 3.2,
+                    "std": 1.5,
+                    "min": 1.0,
+                    "25%": 2.0,
+                    "50%": 3.0,
+                    "75%": 3.0,
+                    "max": 7.0,
+                    "skewness": None
+                }
             ),
             ColumnInfo(
                 name="ConstantCol",
@@ -584,7 +619,29 @@ def generate_mock_dataset_info(dataset_id: str) -> DatasetInfoResponse:
                 unique_count=1,
                 missing_count=0,
                 missing_rate=0.0,
-                flags=["constant"]
+                flags=["constant"],
+                statistics={
+                    "count": 1000.0,
+                    "mean": 42.0,
+                    "std": 0.0,
+                    "min": 42.0,
+                    "25%": 42.0,
+                    "50%": 42.0,
+                    "75%": 42.0,
+                    "max": 42.0,
+                    "skewness": None
+                }
+            ),
+            ColumnInfo(
+                name="Score",
+                dtype="float64",
+                primitive_type="numeric",
+                subtype="continuous",
+                unique_count=100,
+                missing_count=0,
+                missing_rate=0.0,
+                flags=[],
+                statistics=None
             )
         ],
         correlation=CorrelationInfo(
