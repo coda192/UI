@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import List, Optional, Dict
+from typing import List, Optional
 
 class ColumnMetadata(BaseModel):
     name: str
@@ -52,7 +52,7 @@ class ColumnInfo(BaseModel):
     missing_count: int
     missing_rate: float
     flags: List[str] = []
-    statistics: Optional[Dict[str, Optional[float]]] = None
+    statistics: Optional[dict[str, Optional[float]]] = None
 
 
 class CorrelationInfo(BaseModel):
