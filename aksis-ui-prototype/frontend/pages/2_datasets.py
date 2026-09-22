@@ -569,6 +569,21 @@ try:
                                         "Grup": "Kalan"
                                     })
 
+                                # Kapsama Oranı (Coverage Ratio) ve Temsil İlerleme Çubuğu
+                                displayed_cats_sum = displayed_sum
+                                coverage_pct = min(100.0, (displayed_cats_sum / valid_cnt * 100)) if valid_cnt > 0 else 0.0
+
+                                st.progress(min(1.0, coverage_pct / 100.0))
+                                cov_col1, cov_col2 = st.columns([7, 3])
+                                with cov_col1:
+                                    st.caption(f"🎯 **Temsil Gücü:** Seçilen {k_choice} kategori, toplam geçerli gözlemlerin **%{coverage_pct:.1f}**'ini kapsamaktadır.")
+                                with cov_col2:
+                                    first_pct = (displayed_cats[0].count if hasattr(displayed_cats[0], 'count') else displayed_cats[0].get('count', 0)) / valid_cnt if valid_cnt > 0 else 0.0
+                                    if first_pct > 0.5:
+                                        st.caption("⚠️ **Yüksek Sınıf Konsantrasyonu** (Baskın Sınıf)")
+                                    else:
+                                        st.caption("✅ **Dengeli Sınıf Dağılımı**")
+
                                 # Özet Metrikler
                                 tc_m1, tc_m2, tc_m3 = st.columns(3)
                                 with tc_m1:
@@ -581,38 +596,98 @@ try:
                                     else:
                                         st.metric("Diğer (Kalan Pay)", "0 (%0.0)")
 
-                                # Plotly Yatay Bar Grafiği
+                                # İkili Görselleştirme: Sol Yatay Bar + Sağ Donut
                                 if cat_records:
                                     import plotly.graph_objects as go
-                                    chart_records = cat_records[::-1]
-                                    y_vals = [r["Kategori"] for r in chart_records]
-                                    x_vals = [r["Frekans"] for r in chart_records]
-                                    hover_texts = [
-                                        f"<b>{r['Kategori']}</b><br>Gözlem: {r['Frekans']:,}<br>Pay: {r['Yüzde']}<extra></extra>"
-                                        for r in chart_records
-                                    ]
-                                    bar_colors = [
-                                        "#90A4AE" if r["Grup"] == "Kalan" else "#1976D2"
-                                        for r in chart_records
+
+                                    # Modern Gradient Palet
+                                    palette = [
+                                        "#1565C0", "#1976D2", "#1E88E5", "#2196F3", "#42A5F5",
+                                        "#26A69A", "#00897B", "#00796B", "#FFB300", "#FB8C00"
                                     ]
 
-                                    fig_cats = go.Figure(go.Bar(
-                                        y=y_vals,
-                                        x=x_vals,
-                                        orientation='h',
-                                        text=[f"{v:,} ({r['Yüzde']})" for v, r in zip(x_vals, chart_records)],
-                                        textposition='outside',
-                                        hovertemplate=hover_texts,
-                                        marker=dict(color=bar_colors)
-                                    ))
-                                    fig_cats.update_layout(
-                                        title=f"Kategori Dağılımı ({k_choice}) — {selected_col_name}",
-                                        xaxis=dict(title="Gözlem Sayısı (Frekans)"),
-                                        yaxis=dict(title=""),
-                                        height=max(220, len(chart_records) * 42),
-                                        margin=dict(t=45, b=20, l=10, r=70)
-                                    )
-                                    st.plotly_chart(fig_cats, use_container_width=True)
+                                    vis_col1, vis_col2 = st.columns([6, 4])
+
+                                    # 1. SOL: Degrade Yatay Bar Grafiği
+                                    with vis_col1:
+                                        chart_records = cat_records[::-1]
+                                        y_vals = [r["Kategori"] for r in chart_records]
+                                        x_vals = [r["Frekans"] for r in chart_records]
+                                        hover_texts = [
+                                            f"<b>{r['Kategori']}</b><br>Frekans: {r['Frekans']:,}<br>Pay: {r['Yüzde']}<extra></extra>"
+                                            for r in chart_records
+                                        ]
+                                        bar_colors = [
+                                            "#90A4AE" if r["Grup"] == "Kalan" else palette[i % len(palette)]
+                                            for i, r in enumerate(chart_records)
+                                        ]
+
+                                        fig_bar = go.Figure(go.Bar(
+                                            y=y_vals,
+                                            x=x_vals,
+                                            orientation='h',
+                                            text=[f"{v:,} ({r['Yüzde']})" for v, r in zip(x_vals, chart_records)],
+                                            textposition='outside',
+                                            hovertemplate=hover_texts,
+                                            marker=dict(
+                                                color=bar_colors,
+                                                line=dict(color='rgba(255, 255, 255, 0.6)', width=1)
+                                            )
+                                        ))
+                                        fig_bar.update_layout(
+                                            title=f"Frekans Çubuk Grafiği — {selected_col_name}",
+                                            xaxis=dict(title="Gözlem Adedi", showgrid=True, gridcolor='rgba(200,200,200,0.2)'),
+                                            yaxis=dict(title=""),
+                                            height=max(240, len(chart_records) * 38),
+                                            margin=dict(t=40, b=20, l=10, r=80)
+                                        )
+                                        st.plotly_chart(fig_bar, use_container_width=True)
+
+                                    # 2. SAĞ: Merkezi Metrikli Donut (Halka) Grafiği
+                                    with vis_col2:
+                                        donut_labels = [r["Kategori"] for r in cat_records]
+                                        donut_vals = [r["Frekans"] for r in cat_records]
+                                        donut_colors = [
+                                            "#90A4AE" if r["Grup"] == "Kalan" else palette[i % len(palette)]
+                                            for i, r in enumerate(cat_records)
+                                        ]
+
+                                        fig_donut = go.Figure(data=[go.Pie(
+                                            labels=donut_labels,
+                                            values=donut_vals,
+                                            hole=0.55,
+                                            marker=dict(colors=donut_colors, line=dict(color='#FFFFFF', width=2)),
+                                            textinfo="percent",
+                                            hoverinfo="label+value+percent",
+                                            hovertemplate="<b>%{label}</b><br>Adet: %{value:,}<br>Oran: %{percent}<extra></extra>"
+                                        )])
+                                        fig_donut.update_layout(
+                                            title="Yüzdesel Dağılım",
+                                            annotations=[dict(
+                                                text=f"<b>{valid_cnt:,}</b><br><span style='font-size:11px;color:#78909C'>Geçerli</span>",
+                                                x=0.5, y=0.5, font_size=15, showarrow=False
+                                            )],
+                                            height=max(240, len(chart_records) * 38),
+                                            margin=dict(t=40, b=10, l=10, r=10),
+                                            legend=dict(orientation="h", yanchor="top", y=-0.1, xanchor="center", x=0.5)
+                                        )
+                                        st.plotly_chart(fig_donut, use_container_width=True)
+
+                                    # 3. Kümülatif Dağılım & Pareto Tablosu (Expander)
+                                    with st.expander("📋 Detaylı Kategori ve Kümülatif Pay Tablosu"):
+                                        cum_sum = 0
+                                        pareto_rows = []
+                                        for r in cat_records:
+                                            cum_sum += r["Frekans"]
+                                            cum_pct = (cum_sum / valid_cnt * 100) if valid_cnt > 0 else 0.0
+                                            pareto_rows.append({
+                                                "Kategori": r["Kategori"],
+                                                "Tür": r["Grup"],
+                                                "Frekans": f"{r['Frekans']:,}",
+                                                "Tekil Pay (%)": r["Yüzde"],
+                                                "Kümülatif Pay (%)": f"%{cum_pct:.1f}"
+                                            })
+                                        st.dataframe(pd.DataFrame(pareto_rows), use_container_width=True)
                         else:
                             st.info("Bu kategorik sütun için en sık gözlenen kategoriler (top_categories) bulunmamaktadır.")
 
