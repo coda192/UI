@@ -478,6 +478,71 @@ def test_get_dataset_info_mock_endpoint():
     assert "flags" in col0
 
 
+def test_dataset_info_histogram_schema_validation():
+    from backend.schemas import DatasetInfoResponse, ColumnInfo, HistogramData
+
+    data = {
+        "dataset_id": "test_hist_ds",
+        "row_count": 100,
+        "column_count": 2,
+        "missing_value_count": 0,
+        "missing_column_count": 0,
+        "type_counts": {"numeric": 1, "categorical": 1},
+        "columns": [
+            {
+                "name": "col_num",
+                "dtype": "float64",
+                "primitive_type": "numeric",
+                "subtype": "continuous",
+                "unique_count": 50,
+                "missing_count": 0,
+                "missing_rate": 0.0,
+                "statistics": {"skewness": 0.42},
+                "histogram": {
+                    "counts": [10, 20, 30, 40],
+                    "bin_edges": [0.0, 10.0, 20.0, 30.0, 40.0]
+                }
+            },
+            {
+                "name": "col_cat",
+                "dtype": "object",
+                "primitive_type": "categorical",
+                "subtype": "nominal",
+                "unique_count": 2,
+                "missing_count": 0,
+                "missing_rate": 0.0,
+                "histogram": None
+            }
+        ]
+    }
+    info = DatasetInfoResponse(**data)
+    assert info.columns[0].histogram is not None
+    assert isinstance(info.columns[0].histogram, HistogramData)
+    assert info.columns[0].histogram.counts == [10, 20, 30, 40]
+    assert len(info.columns[0].histogram.bin_edges) == len(info.columns[0].histogram.counts) + 1
+    assert info.columns[1].histogram is None
+
+
+def test_get_dataset_info_histogram_in_response():
+    response = client.get("/api/v1/datasets/ds_class_01/info")
+    assert response.status_code == 200
+    data = response.json()
+    cols = {c["name"]: c for c in data["columns"]}
+
+    assert "Age" in cols
+    age_hist = cols["Age"].get("histogram")
+    assert age_hist is not None
+    assert "counts" in age_hist
+    assert "bin_edges" in age_hist
+    assert len(age_hist["bin_edges"]) == len(age_hist["counts"]) + 1
+
+    assert "Score" in cols
+    assert cols["Score"].get("histogram") is None
+
+    assert "Department" in cols
+    assert cols["Department"].get("histogram") is None
+
+
 def test_get_dataset_info_refresh_param():
     response = client.get("/api/v1/datasets/ds_class_01/info?refresh=true")
     assert response.status_code == 200

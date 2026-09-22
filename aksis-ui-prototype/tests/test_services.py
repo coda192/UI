@@ -533,6 +533,38 @@ def test_mock_service_top_categories():
     assert dept.other_count == 50
 
 
+def test_mock_service_histogram():
+    from backend.services.mock_service import MockAksisService
+    from backend.schemas import HistogramData
+
+    service = MockAksisService()
+    info = service.get_dataset_info("ds_class_01")
+    cols = {c.name: c for c in info.columns}
+
+    # Age has histogram
+    age = cols["Age"]
+    assert isinstance(age.histogram, HistogramData)
+    assert len(age.histogram.counts) > 0
+    assert len(age.histogram.bin_edges) == len(age.histogram.counts) + 1
+    assert age.statistics["skewness"] == 0.35
+
+    # Income has histogram and skewness
+    income = cols["Income"]
+    assert isinstance(income.histogram, HistogramData)
+    assert len(income.histogram.bin_edges) == len(income.histogram.counts) + 1
+    assert income.statistics["skewness"] == 1.25
+
+    # Score has None histogram and None statistics
+    score = cols["Score"]
+    assert score.histogram is None
+    assert score.statistics is None
+
+    # Categorical Department has None histogram
+    dept = cols["Department"]
+    assert dept.histogram is None
+
+
+
 
 
 

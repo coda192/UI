@@ -4,6 +4,7 @@ from backend.schemas import (
     DatasetMetadata,
     ColumnMetadata,
     TopCategory,
+    HistogramData,
     ColumnInfo,
     CorrelationInfo,
     DatasetInfoResponse
@@ -546,7 +547,11 @@ def generate_mock_dataset_info(dataset_id: str) -> DatasetInfoResponse:
                     "75%": 46.0,
                     "max": 65.0,
                     "skewness": 0.35
-                }
+                },
+                histogram=HistogramData(
+                    counts=[120, 240, 310, 190, 95, 33],
+                    bin_edges=[18.0, 26.0, 34.0, 42.0, 50.0, 58.0, 66.0]
+                )
             ),
             ColumnInfo(
                 name="Income",
@@ -567,7 +572,11 @@ def generate_mock_dataset_info(dataset_id: str) -> DatasetInfoResponse:
                     "75%": 68000.0,
                     "max": 145000.0,
                     "skewness": 1.25
-                }
+                },
+                histogram=HistogramData(
+                    counts=[230, 390, 215, 105, 38, 16],
+                    bin_edges=[18000.0, 39000.0, 60000.0, 81000.0, 102000.0, 123000.0, 145000.0]
+                )
             ),
             ColumnInfo(
                 name="Department",
@@ -627,7 +636,11 @@ def generate_mock_dataset_info(dataset_id: str) -> DatasetInfoResponse:
                     "75%": 3.0,
                     "max": 7.0,
                     "skewness": None
-                }
+                },
+                histogram=HistogramData(
+                    counts=[160, 340, 280, 130, 60, 30],
+                    bin_edges=[1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0]
+                )
             ),
             ColumnInfo(
                 name="ConstantCol",
@@ -648,7 +661,11 @@ def generate_mock_dataset_info(dataset_id: str) -> DatasetInfoResponse:
                     "75%": 42.0,
                     "max": 42.0,
                     "skewness": None
-                }
+                },
+                histogram=HistogramData(
+                    counts=[1000],
+                    bin_edges=[41.5, 42.5]
+                )
             ),
             ColumnInfo(
                 name="Score",
@@ -659,7 +676,8 @@ def generate_mock_dataset_info(dataset_id: str) -> DatasetInfoResponse:
                 missing_count=0,
                 missing_rate=0.0,
                 flags=[],
-                statistics=None
+                statistics=None,
+                histogram=None
             )
         ],
         correlation=CorrelationInfo(

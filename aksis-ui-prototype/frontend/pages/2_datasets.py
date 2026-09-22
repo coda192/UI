@@ -256,9 +256,10 @@ try:
                     # ==========================================
                     if prim_type in ["numeric", "numerical"]:
                         st.markdown(f"##### 🔢 Sayısal Sütun Analizi: `{selected_col_name}`")
-                        stats = selected_col.get("statistics")
+                        stats = selected_col.get("statistics") or {}
+
+                        # Metrik Kartları
                         if stats:
-                            # Metrik Kartları
                             sm1, sm2, sm3, sm4, sm5 = st.columns(5)
                             cnt = stats.get("count")
                             mean_v = stats.get("mean")
@@ -278,194 +279,259 @@ try:
                                 st.metric("Medyan (Q2)", f"{med_v:.2f}" if med_v is not None else "-")
                             with sm5:
                                 st.metric("IQR (Q3 - Q1)", f"{iqr_v:.2f}" if iqr_v is not None else "-")
+                        else:
+                            st.caption("ℹ️ Bu sayısal sütun için özet betimsel istatistikler (statistics) API yanıtında bulunmamaktadır.")
 
-                            # Sayısal Analiz Sekmeleri
-                            num_tab1, num_tab2, num_tab3 = st.tabs([
-                                "📊 Çeyrek Dilimleri & IQR",
-                                "📐 Çarpıklık (Skewness)",
-                                "ℹ️ Dağılım & Histogram Bilgisi"
-                            ])
+                        # Sayısal Analiz Sekmeleri
+                        num_tab1, num_tab2, num_tab3 = st.tabs([
+                            "📊 Çeyrek Dilimleri & IQR",
+                            "📐 Çarpıklık (Skewness)",
+                            "📊 Histogram Dağılımı"
+                        ])
 
-                            with num_tab1:
-                                # Çeyrek Görselleştirmesi (Quartile Visualization)
-                                min_v = stats.get("min")
-                                max_v = stats.get("max")
+                        with num_tab1:
+                            # Çeyrek Görselleştirmesi (Quartile Visualization)
+                            min_v = stats.get("min") if stats else None
+                            max_v = stats.get("max") if stats else None
+                            q1_v = stats.get("25%") if stats else None
+                            med_v = stats.get("50%") if stats else None
+                            q3_v = stats.get("75%") if stats else None
 
-                                if all(v is not None for v in [min_v, q1_v, med_v, q3_v, max_v]):
-                                    import plotly.graph_objects as go
+                            if all(v is not None for v in [min_v, q1_v, med_v, q3_v, max_v]):
+                                import plotly.graph_objects as go
 
-                                    if min_v == max_v:
-                                        st.info(f"ℹ️ **Sabit Değerli Sütun:** Tüm gözlemler ve çeyrek değerleri tek bir değere eşittir ({min_v:.2f}). Değişkenlik bulunmamaktadır.")
-                                        fig_q = go.Figure()
+                                if min_v == max_v:
+                                    st.info(f"ℹ️ **Sabit Değerli Sütun:** Tüm gözlemler ve çeyrek değerleri tek bir değere eşittir ({min_v:.2f}). Değişkenlik bulunmamaktadır.")
+                                    fig_q = go.Figure()
+                                    fig_q.add_vline(
+                                        x=min_v,
+                                        line_width=3,
+                                        line_color="#4A90E2",
+                                        annotation_text=f"Sabit Değer: {min_v:.2f}",
+                                        annotation_position="top"
+                                    )
+                                    fig_q.update_layout(
+                                        title=f"Sabit Değer Görselleştirmesi — {selected_col_name}",
+                                        xaxis=dict(title=selected_col_name, range=[min_v - 1, min_v + 1]),
+                                        yaxis=dict(showticklabels=False),
+                                        height=200,
+                                        margin=dict(t=40, b=20, l=10, r=10)
+                                    )
+                                    st.plotly_chart(fig_q, use_container_width=True)
+                                else:
+                                    fig_q = go.Figure()
+
+                                    # 4 Çeyrek Aralığı (Quartile Intervals)
+                                    y_cat_q = "Çeyrek Dilimleri"
+                                    y_cat_iqr = "IQR (Orta %50)"
+
+                                    # Q0: Min -> Q1
+                                    w_q0 = max(0.0, q1_v - min_v)
+                                    hover_q0 = (
+                                        f"<b>1. Çeyrek Dilimi (Q0: Min → Q1)</b><br>"
+                                        f"Aralık: {min_v:.2f} — {q1_v:.2f}<br>"
+                                        f"Aralık Genişliği: {w_q0:.2f}<br>"
+                                        f"Pay: Gözlemlerin yaklaşık ilk %25'i<extra></extra>"
+                                    )
+                                    fig_q.add_trace(go.Bar(
+                                        name="Q0: Min → Q1 (İlk %25)",
+                                        y=[y_cat_q],
+                                        x=[w_q0],
+                                        base=[min_v],
+                                        orientation='h',
+                                        marker=dict(color="#4A90E2", line=dict(color="#1D60A5", width=1.5)),
+                                        hovertemplate=hover_q0
+                                    ))
+
+                                    # Q1: Q1 -> Medyan
+                                    w_q1 = max(0.0, med_v - q1_v)
+                                    hover_q1 = (
+                                        f"<b>2. Çeyrek Dilimi (Q1: Q1 → Medyan)</b><br>"
+                                        f"Aralık: {q1_v:.2f} — {med_v:.2f}<br>"
+                                        f"Aralık Genişliği: {w_q1:.2f}<br>"
+                                        f"Pay: Gözlemlerin yaklaşık ikinci %25'i<extra></extra>"
+                                    )
+                                    fig_q.add_trace(go.Bar(
+                                        name="Q1: Q1 → Medyan (İkinci %25)",
+                                        y=[y_cat_q],
+                                        x=[w_q1],
+                                        base=[q1_v],
+                                        orientation='h',
+                                        marker=dict(color="#50E3C2", line=dict(color="#20A889", width=1.5)),
+                                        hovertemplate=hover_q1
+                                    ))
+
+                                    # Q2: Medyan -> Q3
+                                    w_q2 = max(0.0, q3_v - med_v)
+                                    hover_q2 = (
+                                        f"<b>3. Çeyrek Dilimi (Q2: Medyan → Q3)</b><br>"
+                                        f"Aralık: {med_v:.2f} — {q3_v:.2f}<br>"
+                                        f"Aralık Genişliği: {w_q2:.2f}<br>"
+                                        f"Pay: Gözlemlerin yaklaşık üçüncü %25'i<extra></extra>"
+                                    )
+                                    fig_q.add_trace(go.Bar(
+                                        name="Q2: Medyan → Q3 (Üçüncü %25)",
+                                        y=[y_cat_q],
+                                        x=[w_q2],
+                                        base=[med_v],
+                                        orientation='h',
+                                        marker=dict(color="#F5A623", line=dict(color="#C47E0C", width=1.5)),
+                                        hovertemplate=hover_q2
+                                    ))
+
+                                    # Q3: Q3 -> Maks
+                                    w_q3 = max(0.0, max_v - q3_v)
+                                    hover_q3 = (
+                                        f"<b>4. Çeyrek Dilimi (Q3: Q3 → Maks)</b><br>"
+                                        f"Aralık: {q3_v:.2f} — {max_v:.2f}<br>"
+                                        f"Aralık Genişliği: {w_q3:.2f}<br>"
+                                        f"Pay: Gözlemlerin yaklaşık son %25'i<extra></extra>"
+                                    )
+                                    fig_q.add_trace(go.Bar(
+                                        name="Q3: Q3 → Maks (Dördüncü %25)",
+                                        y=[y_cat_q],
+                                        x=[w_q3],
+                                        base=[q3_v],
+                                        orientation='h',
+                                        marker=dict(color="#E94E77", line=dict(color="#B32448", width=1.5)),
+                                        hovertemplate=hover_q3
+                                    ))
+
+                                    # IQR Barı
+                                    w_iqr = max(0.0, q3_v - q1_v)
+                                    hover_iqr = (
+                                        f"<b>IQR (Çeyrekler Açıklığı: Q1 → Q3)</b><br>"
+                                        f"Aralık: {q1_v:.2f} — {q3_v:.2f}<br>"
+                                        f"IQR Genişliği: {w_iqr:.2f}<br>"
+                                        f"Pay: Gözlemlerin orta %50'si<extra></extra>"
+                                    )
+                                    fig_q.add_trace(go.Bar(
+                                        name="IQR (Q1 → Q3)",
+                                        y=[y_cat_iqr],
+                                        x=[w_iqr],
+                                        base=[q1_v],
+                                        orientation='h',
+                                        marker=dict(color="#9013FE", line=dict(color="#6005B5", width=1.5)),
+                                        hovertemplate=hover_iqr
+                                    ))
+
+                                    # Sınır Çizgileri ve Etiketler
+                                    bounds = [
+                                        ("Min", min_v),
+                                        ("Q1", q1_v),
+                                        ("Medyan", med_v),
+                                        ("Q3", q3_v),
+                                        ("Maks", max_v)
+                                    ]
+                                    grouped_bounds = {}
+                                    for b_name, b_val in bounds:
+                                        grouped_bounds.setdefault(b_val, []).append(b_name)
+
+                                    for b_val, b_names in grouped_bounds.items():
+                                        lbl = f"{' & '.join(b_names)}: {b_val:.2f}"
                                         fig_q.add_vline(
-                                            x=min_v,
-                                            line_width=3,
-                                            line_color="#4A90E2",
-                                            annotation_text=f"Sabit Değer: {min_v:.2f}",
-                                            annotation_position="top"
+                                            x=b_val,
+                                            line_width=1.5,
+                                            line_dash="dash",
+                                            line_color="rgba(128, 128, 128, 0.6)",
+                                            annotation_text=lbl,
+                                            annotation_position="top",
+                                            annotation_font_size=10
                                         )
-                                        fig_q.update_layout(
-                                            title=f"Sabit Değer Görselleştirmesi — {selected_col_name}",
-                                            xaxis=dict(title=selected_col_name, range=[min_v - 1, min_v + 1]),
-                                            yaxis=dict(showticklabels=False),
-                                            height=200,
-                                            margin=dict(t=40, b=20, l=10, r=10)
-                                        )
-                                        st.plotly_chart(fig_q, use_container_width=True)
-                                    else:
-                                        fig_q = go.Figure()
 
-                                        # 4 Çeyrek Aralığı (Quartile Intervals)
-                                        y_cat_q = "Çeyrek Dilimleri"
-                                        y_cat_iqr = "IQR (Orta %50)"
+                                    span = max_v - min_v
+                                    pad = span * 0.08 if span > 0 else 1.0
+                                    fig_q.update_layout(
+                                        barmode='overlay',
+                                        title=f"Çeyrek Dilimleri ve IQR Görselleştirmesi — {selected_col_name}",
+                                        xaxis=dict(
+                                            title=f"{selected_col_name} Değer Ekseni",
+                                            range=[min_v - pad, max_v + pad]
+                                        ),
+                                        yaxis=dict(title=""),
+                                        height=290,
+                                        margin=dict(t=50, b=30, l=10, r=10),
+                                        legend=dict(orientation="h", yanchor="bottom", y=-0.45, xanchor="center", x=0.5)
+                                    )
+                                    st.plotly_chart(fig_q, use_container_width=True)
+                            else:
+                                st.info("Bu sütun için beşli özet (Min, Q1, Medyan, Q3, Maks) değerlerinin tümü mevcut değildir.")
 
-                                        # Q0: Min -> Q1
-                                        w_q0 = max(0.0, q1_v - min_v)
-                                        hover_q0 = (
-                                            f"<b>1. Çeyrek Dilimi (Q0: Min → Q1)</b><br>"
-                                            f"Aralık: {min_v:.2f} — {q1_v:.2f}<br>"
-                                            f"Aralık Genişliği: {w_q0:.2f}<br>"
-                                            f"Pay: Gözlemlerin yaklaşık ilk %25'i<extra></extra>"
-                                        )
-                                        fig_q.add_trace(go.Bar(
-                                            name="Q0: Min → Q1 (İlk %25)",
-                                            y=[y_cat_q],
-                                            x=[w_q0],
-                                            base=[min_v],
-                                            orientation='h',
-                                            marker=dict(color="#4A90E2", line=dict(color="#1D60A5", width=1.5)),
-                                            hovertemplate=hover_q0
-                                        ))
+                        with num_tab2:
+                            # Çarpıklık (Skewness) Yorumu ve Küçük Yön Göstergesi
+                            skew_v = stats.get("skewness") if stats else None
 
-                                        # Q1: Q1 -> Medyan
-                                        w_q1 = max(0.0, med_v - q1_v)
-                                        hover_q1 = (
-                                            f"<b>2. Çeyrek Dilimi (Q1: Q1 → Medyan)</b><br>"
-                                            f"Aralık: {q1_v:.2f} — {med_v:.2f}<br>"
-                                            f"Aralık Genişliği: {w_q1:.2f}<br>"
-                                            f"Pay: Gözlemlerin yaklaşık ikinci %25'i<extra></extra>"
-                                        )
-                                        fig_q.add_trace(go.Bar(
-                                            name="Q1: Q1 → Medyan (İkinci %25)",
-                                            y=[y_cat_q],
-                                            x=[w_q1],
-                                            base=[q1_v],
-                                            orientation='h',
-                                            marker=dict(color="#50E3C2", line=dict(color="#20A889", width=1.5)),
-                                            hovertemplate=hover_q1
-                                        ))
-
-                                        # Q2: Medyan -> Q3
-                                        w_q2 = max(0.0, q3_v - med_v)
-                                        hover_q2 = (
-                                            f"<b>3. Çeyrek Dilimi (Q2: Medyan → Q3)</b><br>"
-                                            f"Aralık: {med_v:.2f} — {q3_v:.2f}<br>"
-                                            f"Aralık Genişliği: {w_q2:.2f}<br>"
-                                            f"Pay: Gözlemlerin yaklaşık üçüncü %25'i<extra></extra>"
-                                        )
-                                        fig_q.add_trace(go.Bar(
-                                            name="Q2: Medyan → Q3 (Üçüncü %25)",
-                                            y=[y_cat_q],
-                                            x=[w_q2],
-                                            base=[med_v],
-                                            orientation='h',
-                                            marker=dict(color="#F5A623", line=dict(color="#C47E0C", width=1.5)),
-                                            hovertemplate=hover_q2
-                                        ))
-
-                                        # Q3: Q3 -> Maks
-                                        w_q3 = max(0.0, max_v - q3_v)
-                                        hover_q3 = (
-                                            f"<b>4. Çeyrek Dilimi (Q3: Q3 → Maks)</b><br>"
-                                            f"Aralık: {q3_v:.2f} — {max_v:.2f}<br>"
-                                            f"Aralık Genişliği: {w_q3:.2f}<br>"
-                                            f"Pay: Gözlemlerin yaklaşık son %25'i<extra></extra>"
-                                        )
-                                        fig_q.add_trace(go.Bar(
-                                            name="Q3: Q3 → Maks (Dördüncü %25)",
-                                            y=[y_cat_q],
-                                            x=[w_q3],
-                                            base=[q3_v],
-                                            orientation='h',
-                                            marker=dict(color="#E94E77", line=dict(color="#B32448", width=1.5)),
-                                            hovertemplate=hover_q3
-                                        ))
-
-                                        # IQR Barı
-                                        w_iqr = max(0.0, q3_v - q1_v)
-                                        hover_iqr = (
-                                            f"<b>IQR (Çeyrekler Açıklığı: Q1 → Q3)</b><br>"
-                                            f"Aralık: {q1_v:.2f} — {q3_v:.2f}<br>"
-                                            f"IQR Genişliği: {w_iqr:.2f}<br>"
-                                            f"Pay: Gözlemlerin orta %50'si<extra></extra>"
-                                        )
-                                        fig_q.add_trace(go.Bar(
-                                            name="IQR (Q1 → Q3)",
-                                            y=[y_cat_iqr],
-                                            x=[w_iqr],
-                                            base=[q1_v],
-                                            orientation='h',
-                                            marker=dict(color="#9013FE", line=dict(color="#6005B5", width=1.5)),
-                                            hovertemplate=hover_iqr
-                                        ))
-
-                                        # Sınır Çizgileri ve Etiketler
-                                        bounds = [
-                                            ("Min", min_v),
-                                            ("Q1", q1_v),
-                                            ("Medyan", med_v),
-                                            ("Q3", q3_v),
-                                            ("Maks", max_v)
-                                        ]
-                                        grouped_bounds = {}
-                                        for b_name, b_val in bounds:
-                                            grouped_bounds.setdefault(b_val, []).append(b_name)
-
-                                        for b_val, b_names in grouped_bounds.items():
-                                            lbl = f"{' & '.join(b_names)}: {b_val:.2f}"
-                                            fig_q.add_vline(
-                                                x=b_val,
-                                                line_width=1.5,
-                                                line_dash="dash",
-                                                line_color="rgba(128, 128, 128, 0.6)",
-                                                annotation_text=lbl,
-                                                annotation_position="top",
-                                                annotation_font_size=10
-                                            )
-
-                                        span = max_v - min_v
-                                        pad = span * 0.08 if span > 0 else 1.0
-                                        fig_q.update_layout(
-                                            barmode='overlay',
-                                            title=f"Çeyrek Dilimleri ve IQR Görselleştirmesi — {selected_col_name}",
-                                            xaxis=dict(
-                                                title=f"{selected_col_name} Değer Ekseni",
-                                                range=[min_v - pad, max_v + pad]
-                                            ),
-                                            yaxis=dict(title=""),
-                                            height=290,
-                                            margin=dict(t=50, b=30, l=10, r=10),
-                                            legend=dict(orientation="h", yanchor="bottom", y=-0.45, xanchor="center", x=0.5)
-                                        )
-                                        st.plotly_chart(fig_q, use_container_width=True)
+                            if skew_v is not None:
+                                disp_skew = f"{skew_v:.3f}"
+                                if skew_v > 0.05:
+                                    interp_msg = "Pozitif çarpıklık: Dağılımın sağ kuyruğu daha uzun veya daha ağırdır (sağa çarpık)."
+                                    direction_label = "Sağa Çarpık (Pozitif)"
+                                    bar_color = "#F59E0B"
+                                elif skew_v < -0.05:
+                                    interp_msg = "Negatif çarpıklık: Dağılımın sol kuyruğu daha uzun veya daha ağırdır (sola çarpık)."
+                                    direction_label = "Sola Çarpık (Negatif)"
+                                    bar_color = "#8B5CF6"
                                 else:
-                                    st.info("Bu sütun için beşli özet (Min, Q1, Medyan, Q3, Maks) değerlerinin tümü mevcut değildir.")
+                                    interp_msg = "Sıfıra yakın çarpıklık: Bu ölçüme göre dağılımda görece sınırlı bir asimetri bulunmaktadır."
+                                    direction_label = "Yaklaşık Simetrik"
+                                    bar_color = "#10B981"
 
-                            with num_tab2:
-                                # Çarpıklık (Skewness) Yorumu
-                                skew_v = stats.get("skewness")
+                                sk1, sk2 = st.columns([3, 7])
+                                with sk1:
+                                    st.metric("Çarpıklık Değeri", disp_skew, delta=f"{skew_v:+.3f} (0'a göre)", delta_color="off")
+                                with sk2:
+                                    st.info(f"**Yorum:** {interp_msg}")
 
-                                if skew_v is not None:
-                                    disp_skew = f"{skew_v:.3f}"
-                                    if skew_v > 0.05:
-                                        interp_msg = "Pozitif çarpıklık: Dağılımın sağ kuyruğu daha uzun veya daha ağırdır (sağa çarpık)."
-                                    elif skew_v < -0.05:
-                                        interp_msg = "Negatif çarpıklık: Dağılımın sol kuyruğu daha uzun veya daha ağırdır (sola çarpık)."
-                                    else:
-                                        interp_msg = "Sıfıra yakın çarpıklık: Bu ölçüme göre dağılımda görece sınırlı bir asimetri bulunmaktadır."
-                                else:
-                                    disp_skew = "Hesaplanamadı"
-                                    interp_msg = "Çarpıklık değeri bu sütun için hesaplanamadı veya veri setinde mevcut değildir."
+                                # Küçük Plotly Yön Göstergesi
+                                import plotly.graph_objects as go
+                                fig_skew = go.Figure()
+
+                                lim = max(1.5, abs(skew_v) * 1.3)
+                                fig_skew.add_trace(go.Bar(
+                                    x=[skew_v],
+                                    y=["Çarpıklık Yönü"],
+                                    orientation='h',
+                                    marker=dict(
+                                        color=bar_color,
+                                        line=dict(color="#1F2937", width=1.5)
+                                    ),
+                                    text=[f"{skew_v:+.3f} ({direction_label})"],
+                                    textposition="auto",
+                                    hovertemplate=(
+                                        f"<b>Çarpıklık (Skewness):</b> {skew_v:.3f}<br>"
+                                        f"<b>Durum:</b> {direction_label}<br>"
+                                        f"<b>Referans Noktası:</b> 0.0 (Simetrik Dağılım)<extra></extra>"
+                                    )
+                                ))
+
+                                fig_skew.add_vline(
+                                    x=0.0,
+                                    line_width=2,
+                                    line_dash="dash",
+                                    line_color="#4B5563",
+                                    annotation_text="Simetrik Referans (0.0)",
+                                    annotation_position="top",
+                                    annotation_font_size=11
+                                )
+
+                                fig_skew.update_layout(
+                                    height=150,
+                                    margin=dict(t=35, b=25, l=15, r=15),
+                                    xaxis=dict(
+                                        range=[-lim, lim],
+                                        zeroline=True,
+                                        zerolinewidth=2,
+                                        zerolinecolor="#4B5563",
+                                        title="◄── Sola Çarpık (Negatif Kuyruk)  |  Simetrik (0.0)  |  Sağa Çarpık (Pozitif Kuyruk) ──►",
+                                        title_font=dict(size=11)
+                                    ),
+                                    yaxis=dict(showticklabels=False),
+                                    showlegend=False
+                                )
+                                st.plotly_chart(fig_skew, use_container_width=True)
+                            else:
+                                disp_skew = "Hesaplanamadı"
+                                interp_msg = "Çarpıklık değeri bu sütun için hesaplanamadı veya veri setinde mevcut değildir."
 
                                 sk1, sk2 = st.columns([3, 7])
                                 with sk1:
@@ -473,21 +539,92 @@ try:
                                 with sk2:
                                     st.info(f"**Yorum:** {interp_msg}")
 
-                                st.caption(
-                                    "ℹ️ *Çarpıklık (skewness), bir dağılımın asimetrisini tanımlarken; "
-                                    "çeyrekler (quartiles), değerlerin dağılım içindeki konumlarını ve yayılımını gösterir. "
-                                    "Sıfıra yakın çarpıklık değeri normal dağılımın kesin bir kanıtı değildir.*"
-                                )
+                            st.caption(
+                                "ℹ️ *Çarpıklık (skewness), bir dağılımın asimetrisini tanımlarken; "
+                                "çeyrekler (quartiles), değerlerin dağılım içindeki konumlarını ve yayılımını gösterir. "
+                                "Sıfıra yakın çarpıklık değeri normal dağılımın kesin bir kanıtı değildir.*"
+                            )
 
-                            with num_tab3:
-                                st.info(
-                                    "ℹ️ **Histogram & Kutu Grafiği Durumu:**\n\n"
-                                    "- **Çeyrek & IQR Analizi:** Aktif (API `statistics` beşli özeti üzerinden sunulmaktadır).\n"
-                                    "- **Kutu Grafiği (Box Plot):** API ham gözlem verisi ve aykırı değer noktalarını taşımadığından, dağılım yayılımı Çeyrek Dilimleri & IQR ekseni ile temsil edilmektedir.\n"
-                                    "- **Histogram:** Mevcut `GET /api/v1/datasets/{dataset_id}/info` endpoint'i özet istatistikleri sunmakta olup, ham veri dağılımını veya histogram kutularını (bins) sağlayan ayrı bir histogram endpoint'i mevcut backend sözleşmesinde tanımlı değildir."
+                        with num_tab3:
+                            # Histogram Dağılımı (Önceden Hesaplanmış Histogram Kutuları)
+                            hist_raw = selected_col.get("histogram")
+
+                            hist_counts = None
+                            hist_edges = None
+                            if hist_raw is not None:
+                                if hasattr(hist_raw, "counts") and hasattr(hist_raw, "bin_edges"):
+                                    hist_counts = hist_raw.counts
+                                    hist_edges = hist_raw.bin_edges
+                                elif isinstance(hist_raw, dict):
+                                    hist_counts = hist_raw.get("counts")
+                                    hist_edges = hist_raw.get("bin_edges")
+
+                            # Doğrulama: len(bin_edges) == len(counts) + 1 ve len(counts) > 0
+                            is_valid_hist = (
+                                isinstance(hist_counts, list) and
+                                isinstance(hist_edges, list) and
+                                len(hist_counts) > 0 and
+                                len(hist_edges) == len(hist_counts) + 1
+                            )
+
+                            if is_valid_hist:
+                                import plotly.graph_objects as go
+
+                                n_bins = len(hist_counts)
+                                centers = [(hist_edges[i] + hist_edges[i+1]) / 2.0 for i in range(n_bins)]
+                                widths = [(hist_edges[i+1] - hist_edges[i]) for i in range(n_bins)]
+
+                                hm1, hm2, hm3 = st.columns(3)
+                                with hm1:
+                                    st.metric("Histogram Kutu Sayısı (Bins)", str(n_bins))
+                                with hm2:
+                                    st.metric("Toplam Histogram Gözlemi", f"{sum(hist_counts):,}")
+                                with hm3:
+                                    st.metric("Değer Aralığı (Span)", f"[{hist_edges[0]:.2f}, {hist_edges[-1]:.2f}]")
+
+                                hover_texts = [
+                                    (
+                                        f"<b>Bin {i+1}:</b> [{hist_edges[i]:.2f}, {hist_edges[i+1]:.2f}]<br>"
+                                        f"<b>Gözlem Sayısı (Frekans):</b> {hist_counts[i]:,}<br>"
+                                        f"<b>Bin Genişliği:</b> {widths[i]:.2f}<extra></extra>"
+                                    )
+                                    for i in range(n_bins)
+                                ]
+
+                                fig_hist = go.Figure()
+                                fig_hist.add_trace(go.Bar(
+                                    x=centers,
+                                    y=hist_counts,
+                                    width=widths,
+                                    marker=dict(
+                                        color="#3B82F6",
+                                        line=dict(color="#1D4ED8", width=1.2)
+                                    ),
+                                    hovertemplate=hover_texts,
+                                    name="Histogram"
+                                ))
+
+                                span_min = hist_edges[0]
+                                span_max = hist_edges[-1]
+                                pad = (span_max - span_min) * 0.03 if span_max > span_min else 1.0
+
+                                fig_hist.update_layout(
+                                    title=f"Histogram Dağılımı — {selected_col_name}",
+                                    xaxis=dict(
+                                        title=f"{selected_col_name} Değer Ekseni",
+                                        range=[span_min - pad, span_max + pad]
+                                    ),
+                                    yaxis=dict(
+                                        title="Gözlem Sayısı (Frekans)",
+                                        rangemode="tozero"
+                                    ),
+                                    bargap=0,  # Gerçek sayısal eksende kutuların bitişik yerleşimi
+                                    height=340,
+                                    margin=dict(t=45, b=30, l=10, r=10)
                                 )
-                        else:
-                            st.warning("Bu sayısal sütun için detaylı betimsel istatistikler (statistics) bulunmamaktadır.")
+                                st.plotly_chart(fig_hist, use_container_width=True)
+                            else:
+                                st.info(f"ℹ️ `{selected_col_name}` sütunu için önceden hesaplanmış histogram verisi (counts ve bin_edges) mevcut değildir.")
 
                     # ==========================================
                     # DURUM 2: KATEGORİK KOLONLAR (Categorical)

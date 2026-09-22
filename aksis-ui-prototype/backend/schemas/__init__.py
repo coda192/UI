@@ -5,6 +5,7 @@ from .dataset import (
     ColumnProfile,
     DatasetProfileResponse,
     TopCategory,
+    HistogramData,
     ColumnInfo,
     CorrelationInfo,
     DatasetInfoResponse
@@ -22,6 +23,7 @@ __all__ = [
     "ColumnProfile",
     "DatasetProfileResponse",
     "TopCategory",
+    "HistogramData",
     "ColumnInfo",
     "CorrelationInfo",
     "DatasetInfoResponse",
