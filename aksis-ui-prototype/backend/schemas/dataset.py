@@ -52,6 +52,10 @@ class TopCategory(BaseModel):
     value: str
     count: int
 
+class HistogramData(BaseModel):
+    counts: List[int]
+    bin_edges: List[float]
+
 class ColumnInfo(BaseModel):
     name: str
     dtype: str
@@ -62,6 +66,7 @@ class ColumnInfo(BaseModel):
     missing_rate: float
     flags: List[str] = []
     statistics: Optional[dict[str, Optional[float]]] = None
+    histogram: Optional[HistogramData] = None
     top_categories: Optional[List[TopCategory]] = None
     valid_count: Optional[int] = None
     other_count: Optional[int] = None

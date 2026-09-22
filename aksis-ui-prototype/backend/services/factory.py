@@ -7,7 +7,7 @@ from .aksis_service import RealAksisService
 logger = logging.getLogger("backend.services.factory")
 
 def get_aksis_service() -> AksisService:
-    provider = os.getenv("AKSIS_PROVIDER", "mock").lower()
+    provider = os.getenv("AKSIS_PROVIDER", "aksis").lower()
     if provider == "mock":
         logger.info("AKSIS provider: MockAksisService")
         return MockAksisService()
