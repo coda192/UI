@@ -4,6 +4,7 @@ from .dataset import (
     ColumnMetadata,
     ColumnProfile,
     DatasetProfileResponse,
+    TopCategory,
     ColumnInfo,
     CorrelationInfo,
     DatasetInfoResponse
@@ -20,6 +21,7 @@ __all__ = [
     "ColumnMetadata",
     "ColumnProfile",
     "DatasetProfileResponse",
+    "TopCategory",
     "ColumnInfo",
     "CorrelationInfo",
     "DatasetInfoResponse",

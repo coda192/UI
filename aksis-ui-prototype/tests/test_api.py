@@ -706,4 +706,53 @@ def test_mock_endpoint_returns_numeric_statistics():
     assert columns["Score"]["statistics"] is None
 
 
+def test_top_categories_schema():
+    from backend.schemas import ColumnInfo, TopCategory
+
+    col = ColumnInfo(
+        name="Dept",
+        dtype="object",
+        primitive_type="categorical",
+        unique_count=3,
+        missing_count=0,
+        missing_rate=0.0,
+        flags=[],
+        valid_count=100,
+        other_count=5,
+        top_categories=[
+            TopCategory(value="IT", count=60),
+            TopCategory(value="HR", count=35),
+        ],
+    )
+    assert col.valid_count == 100
+    assert col.other_count == 5
+    assert len(col.top_categories) == 2
+    assert col.top_categories[0].value == "IT"
+    assert col.top_categories[0].count == 60
+
+
+def test_mock_endpoint_returns_top_categories():
+    response = client.get("/api/v1/datasets/ds_class_01/info")
+    assert response.status_code == 200
+    data = response.json()
+    columns = {c["name"]: c for c in data["columns"]}
+
+    assert "Department" in columns
+    dept = columns["Department"]
+    assert dept["valid_count"] == 1000
+    assert dept["other_count"] == 50
+    assert isinstance(dept["top_categories"], list)
+    assert len(dept["top_categories"]) == 5
+    assert dept["top_categories"][0]["value"] == "Mühendislik"
+    assert dept["top_categories"][0]["count"] == 420
+
+    assert "Education" in columns
+    edu = columns["Education"]
+    assert edu["valid_count"] == 1000
+    assert edu["other_count"] == 0
+    assert len(edu["top_categories"]) == 4
+    assert edu["top_categories"][0]["value"] == "Lisans"
+
+
+
 

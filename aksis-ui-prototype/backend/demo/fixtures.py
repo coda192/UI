@@ -3,6 +3,7 @@ from backend.schemas import (
     AlgorithmMetadata,
     DatasetMetadata,
     ColumnMetadata,
+    TopCategory,
     ColumnInfo,
     CorrelationInfo,
     DatasetInfoResponse
@@ -577,7 +578,16 @@ def generate_mock_dataset_info(dataset_id: str) -> DatasetInfoResponse:
                 missing_count=0,
                 missing_rate=0.0,
                 flags=[],
-                statistics=None
+                statistics=None,
+                valid_count=1000,
+                other_count=50,
+                top_categories=[
+                    TopCategory(value="Mühendislik", count=420),
+                    TopCategory(value="Satış", count=260),
+                    TopCategory(value="Pazarlama", count=150),
+                    TopCategory(value="İnsan Kaynakları", count=80),
+                    TopCategory(value="Finans", count=40),
+                ]
             ),
             ColumnInfo(
                 name="Education",
@@ -588,7 +598,15 @@ def generate_mock_dataset_info(dataset_id: str) -> DatasetInfoResponse:
                 missing_count=0,
                 missing_rate=0.0,
                 flags=[],
-                statistics=None
+                statistics=None,
+                valid_count=1000,
+                other_count=0,
+                top_categories=[
+                    TopCategory(value="Lisans", count=510),
+                    TopCategory(value="Yüksek Lisans", count=320),
+                    TopCategory(value="Doktora", count=110),
+                    TopCategory(value="Lise", count=60),
+                ]
             ),
             ColumnInfo(
                 name="Tenure",

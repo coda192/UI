@@ -520,6 +520,20 @@ def test_dataset_info_no_numeric_columns():
     assert len(info.columns) == 2
 
 
+def test_mock_service_top_categories():
+    from backend.services.mock_service import MockAksisService
+
+    service = MockAksisService()
+    info = service.get_dataset_info("ds_class_01")
+    dept = next(c for c in info.columns if c.name == "Department")
+    assert dept.top_categories is not None
+    assert len(dept.top_categories) == 5
+    assert dept.top_categories[0].value == "Mühendislik"
+    assert dept.valid_count == 1000
+    assert dept.other_count == 50
+
+
+
 
 
 

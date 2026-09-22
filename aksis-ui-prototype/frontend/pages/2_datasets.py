@@ -484,6 +484,65 @@ try:
                         if selected_col.get("flags"):
                             st.write(f"**Etiketler (Flags):** {', '.join(selected_col.get('flags'))}")
 
+                        # Top-K Kategori Dağılımı Görselleştirmesi
+                        top_cats = selected_col.get("top_categories")
+                        if top_cats:
+                            st.markdown("###### 📊 En Sık Gözlenen Kategoriler (Top-K Categories)")
+                            valid_cnt = selected_col.get("valid_count")
+                            other_cnt = selected_col.get("other_count")
+
+                            tc_m1, tc_m2, tc_m3 = st.columns(3)
+                            with tc_m1:
+                                if valid_cnt is not None:
+                                    st.metric("Geçerli Gözlem Sayısı", f"{valid_cnt:,}")
+                            with tc_m2:
+                                st.metric("Listelenen Kategori", f"{len(top_cats)}")
+                            with tc_m3:
+                                if other_cnt is not None and other_cnt > 0:
+                                    st.metric("Diğer Kategoriler", f"{other_cnt:,}")
+
+                            cat_records = []
+                            for tc in top_cats:
+                                if hasattr(tc, "value"):
+                                    c_val = tc.value
+                                    c_count = tc.count
+                                elif isinstance(tc, dict):
+                                    c_val = tc.get("value", "")
+                                    c_count = tc.get("count", 0)
+                                else:
+                                    continue
+
+                                pct_str = f"{(c_count / valid_cnt * 100):.1f}%" if valid_cnt and valid_cnt > 0 else "-"
+                                cat_records.append({
+                                    "Kategori": str(c_val),
+                                    "Frekans": c_count,
+                                    "Yüzde Payı": pct_str
+                                })
+
+                            if cat_records:
+                                import plotly.express as px
+                                df_top_cats = pd.DataFrame(cat_records)
+
+                                fig_cats = px.bar(
+                                    df_top_cats.iloc[::-1],
+                                    x="Frekans",
+                                    y="Kategori",
+                                    orientation="h",
+                                    text="Frekans",
+                                    hover_data=["Yüzde Payı"],
+                                    title=f"Kategori Dağılımı — {selected_col_name}",
+                                    color="Frekans",
+                                    color_continuous_scale="Blues"
+                                )
+                                fig_cats.update_layout(
+                                    height=max(200, len(cat_records) * 40),
+                                    margin=dict(t=40, b=20, l=10, r=10),
+                                    yaxis=dict(title=""),
+                                    xaxis=dict(title="Gözlem Sayısı")
+                                )
+                                fig_cats.update_traces(textposition="outside")
+                                st.plotly_chart(fig_cats, use_container_width=True)
+
             st.divider()
 
             # 4.5. PEARSON KORELASYON ANALİZİ (Pearson Correlation Matrix)
