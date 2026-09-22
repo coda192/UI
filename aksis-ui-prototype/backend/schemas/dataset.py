@@ -48,6 +48,10 @@ class DatasetProfileResponse(BaseModel):
     columns: List[ColumnProfile]
 
 
+class TopCategory(BaseModel):
+    value: str
+    count: int
+
 class ColumnInfo(BaseModel):
     name: str
     dtype: str
@@ -58,6 +62,9 @@ class ColumnInfo(BaseModel):
     missing_rate: float
     flags: List[str] = []
     statistics: Optional[dict[str, Optional[float]]] = None
+    top_categories: Optional[List[TopCategory]] = None
+    valid_count: Optional[int] = None
+    other_count: Optional[int] = None
 
 
 class CorrelationInfo(BaseModel):
