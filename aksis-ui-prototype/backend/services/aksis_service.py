@@ -21,6 +21,9 @@ from backend.schemas import (
     InferenceResponse
 )
 
+from src.core.builders.experiment_config_builder import build_experiment_config
+from runner import run_experiment
+
 logger = logging.getLogger("backend.services.aksis_service")
 
 # ==============================================================================
@@ -427,18 +430,7 @@ class RealAksisService(AksisService):
 
         def _execute():
             try:
-                # AKSIS_INTEGRATION_POINT: ExperimentConfig nesnesini oluştur ve koşucuyu çağır
-                # exp_config = ExperimentConfig(
-                #     experiment_id=experiment_id,
-                #     dataset_id=req.dataset_id,
-                #     task=req.task,
-                #     mode=req.mode,
-                #     model_config=ModelConfig(**req.model.model_dump()),
-                #     preprocess_config=PreprocessConfig(**req.preprocessing.model_dump()) if req.preprocessing else None,
-                #     tuning_config=TuningConfig(**req.tuning.model_dump()) if req.tuning and req.tuning.enabled else None,
-                #     validation_config=ValidationConfig(**req.validation.model_dump()) if req.validation else None
-                # )
-                # aksis_run_experiment(exp_config)
+                payload = self._build
                 
                 self._in_memory_status[experiment_id]["status"] = "completed"
             except Exception as e:
