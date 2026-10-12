@@ -43,7 +43,7 @@ class MockAksisService(AksisService):
         exp_id = f"exp_{uuid.uuid4().hex[:8]}"
         meta = ExperimentMetadata(
             id=exp_id,
-            name=req.name,
+            name=req.project_name,
             status="configured",
             created_at=datetime.now(timezone.utc)
         )
@@ -95,10 +95,16 @@ class MockAksisService(AksisService):
         ds = self.get_dataset(req.dataset_id)
         has_ground_truth = ds.target is not None
             
+        algorithm_name = ""
+        if isinstance(req.model, dict):
+            algorithm_name = req.model.get("name") or req.model.get("algorithm") or ""
+        elif req.model is not None:
+            algorithm_name = getattr(req.model, "name", "") or getattr(req.model, "algorithm", "")
+
         return generate_mock_result(
             experiment_id=experiment_id,
             task=req.task,
-            algorithm=req.model.algorithm,
+            algorithm=algorithm_name,
             has_ground_truth=has_ground_truth
         )
         

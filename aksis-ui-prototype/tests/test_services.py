@@ -2,7 +2,7 @@ import os
 from backend.services.factory import get_aksis_service
 from backend.services.mock_service import MockAksisService
 from backend.services.aksis_service import RealAksisService
-from backend.schemas import ExperimentCreateRequest, ModelConfig
+from backend.schemas import ExperimentCreateRequest
 
 def test_service_factory_mock():
     os.environ["AKSIS_PROVIDER"] = "mock"
@@ -19,14 +19,15 @@ def test_mock_service_flow():
     
     # Create
     req = ExperimentCreateRequest(
-        name="Test",
+        project_name="Test",
         dataset_id="ds_class_01",
-        learning_type="supervised",
+        algorithm_type="supervised",
         task="classification",
-        model=ModelConfig(algorithm="CatBoost")
+        model={"name": "CatBoost"}
     )
     meta = service.create_experiment(req)
     assert meta.status == "configured"
+    assert meta.name == "Test"
     
     # Results should fail if not completed
     try:
@@ -42,13 +43,14 @@ def test_mock_service_anomaly_detection_results():
     
     # Test Unlabeled Anomaly
     req_unlabeled = ExperimentCreateRequest(
-        name="Unlabeled Anomaly Test",
+        project_name="Unlabeled Anomaly Test",
         dataset_id="ds_anom_unlabeled_01",
-        learning_type="unsupervised",
+        algorithm_type="unsupervised",
         task="anomaly_detection",
-        model=ModelConfig(algorithm="Isolation Forest")
+        model={"name": "Isolation Forest"}
     )
     meta_unlabeled = service.create_experiment(req_unlabeled)
+    assert meta_unlabeled.name == "Unlabeled Anomaly Test"
     # Directly complete metadata for test assertions
     meta_unlabeled.status = "completed"
     
@@ -60,14 +62,38 @@ def test_mock_service_anomaly_detection_results():
     
     # Test Labeled Anomaly
     req_labeled = ExperimentCreateRequest(
-        name="Labeled Anomaly Test",
+        project_name="Labeled Anomaly Test",
         dataset_id="ds_anom_labeled_01",
-        learning_type="unsupervised",
+        algorithm_type="unsupervised",
         task="anomaly_detection",
-        model=ModelConfig(algorithm="Isolation Forest")
+        model={"name": "Isolation Forest"}
     )
     meta_labeled = service.create_experiment(req_labeled)
+    assert meta_labeled.name == "Labeled Anomaly Test"
     meta_labeled.status = "completed"
+
+def test_real_aksis_service_execution_without_src_fails():
+    import time
+    service = RealAksisService()
+    req = ExperimentCreateRequest(
+        project_name="Real Execution Test",
+        dataset_id="ds_class_01",
+        algorithm_type="supervised",
+        task="classification",
+        model={"name": "xgb_c"}
+    )
+    meta = service.create_experiment(req)
+    assert meta.status == "configured"
+    assert meta.name == "Real Execution Test"
+
+    # Attempt execution without AKSIS src available
+    service.run_experiment(meta.id)
+    time.sleep(0.1)
+
+    exp_meta = service.get_experiment(meta.id)
+    assert exp_meta.status == "failed"
+    assert "AKSIS experiment runner is unavailable" in service._in_memory_status[meta.id]["error"]
+
     
 def test_real_aksis_service_dataspec_mapping_and_security():
     from backend.services.aksis_service import RealAksisService

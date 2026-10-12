@@ -21,9 +21,6 @@ from backend.schemas import (
     InferenceResponse
 )
 
-from src.core.builders.experiment_config_builder import build_experiment_config
-from runner import run_experiment
-
 logger = logging.getLogger("backend.services.aksis_service")
 
 # ==============================================================================
@@ -52,6 +49,20 @@ def _get_aksis_dataset_accessors():
         ) from exc
 
     return get_all_datasets, get_dataset
+
+
+def _get_aksis_runner_accessors():
+    try:
+        from src.core.builders.experiment_config_builder import build_experiment_config
+        from runner import run_experiment as aksis_run_experiment
+    except ImportError as exc:
+        raise RuntimeError(
+            "AKSIS experiment runner is unavailable. "
+            "Real experiment execution requires the AKSIS src package."
+        ) from exc
+
+    return build_experiment_config, aksis_run_experiment
+
 
 
 class RealAksisService(AksisService):
@@ -381,9 +392,9 @@ class RealAksisService(AksisService):
 
     def create_experiment(self, req: ExperimentCreateRequest) -> ExperimentMetadata:
         """
-        PRIORITY 1 & 2 & 3 & 4: API istek gövdesini alır ve deney kaydını başlatır.
+        API istek gövdesini alır ve deney kaydını başlatır.
         """
-        exp_id = f"exp_{req.name}_{int(time.time())}"
+        exp_id = f"exp_{req.project_name}_{int(time.time())}"
         self._in_memory_status[exp_id] = {
             "status": "configured",
             "request": req,
@@ -391,7 +402,7 @@ class RealAksisService(AksisService):
         }
         return ExperimentMetadata(
             id=exp_id,
-            name=req.name,
+            name=req.project_name,
             status="configured",
             created_at=datetime.now(timezone.utc)
         )
@@ -400,7 +411,7 @@ class RealAksisService(AksisService):
         return [
             ExperimentMetadata(
                 id=exp_id,
-                name=data["request"].name,
+                name=data["request"].project_name,
                 status=data["status"],
                 created_at=datetime.now(timezone.utc)
             )
@@ -413,14 +424,14 @@ class RealAksisService(AksisService):
         data = self._in_memory_status[experiment_id]
         return ExperimentMetadata(
             id=experiment_id,
-            name=data["request"].name,
+            name=data["request"].project_name,
             status=data["status"],
             created_at=datetime.now(timezone.utc)
         )
 
     def run_experiment(self, experiment_id: str) -> None:
         """
-        PRIORITY 6: Asenkron (non-blocking) olarak AKSIS run_experiment fonksiyonunu tetikler.
+        Asenkron (non-blocking) olarak AKSIS run_experiment fonksiyonunu tetikler.
         """
         if experiment_id not in self._in_memory_status:
             raise ValueError(f"Experiment {experiment_id} bulunamadı.")
@@ -430,18 +441,21 @@ class RealAksisService(AksisService):
 
         def _execute():
             try:
-                payload = self._build
-                
+                build_experiment_config, aksis_run_experiment = _get_aksis_runner_accessors()
+                payload = req.model_dump(exclude_none=True)
+                exp_config = build_experiment_config(payload)
+                aksis_run_experiment(exp_config)
                 self._in_memory_status[experiment_id]["status"] = "completed"
-            except Exception as e:
+            except Exception as exc:
                 self._in_memory_status[experiment_id]["status"] = "failed"
-                self._in_memory_status[experiment_id]["error"] = str(e)
+                self._in_memory_status[experiment_id]["error"] = str(exc)
+                logger.exception(f"Experiment execution failed for {experiment_id}: {exc}")
 
         threading.Thread(target=_execute, daemon=True).start()
 
     def get_experiment_results(self, experiment_id: str) -> ExperimentResultResponse:
         """
-        PRIORITY 7: outputs/{experiment_id}/ klasöründeki metrics.json ve *.html grafiklerini okur.
+        outputs/{experiment_id}/ klasöründeki metrics.json ve *.html grafiklerini okur.
         """
         if experiment_id not in self._in_memory_status:
             raise ValueError(f"Experiment {experiment_id} bulunamadı.")
@@ -472,11 +486,17 @@ class RealAksisService(AksisService):
                         )
 
         req = exp_data["request"]
+        algorithm_name = ""
+        if isinstance(req.model, dict):
+            algorithm_name = req.model.get("name") or req.model.get("algorithm") or ""
+        elif req.model is not None:
+            algorithm_name = getattr(req.model, "name", "") or getattr(req.model, "algorithm", "")
+
         return ExperimentResultResponse(
             experiment_id=experiment_id,
             task=req.task,
             status="completed",
-            algorithm=req.model.algorithm,
+            algorithm=algorithm_name,
             has_ground_truth=True,
             metrics=MetricsData(**metrics_dict) if metrics_dict else MetricsData(),
             visualizations=visualizations
@@ -484,15 +504,21 @@ class RealAksisService(AksisService):
 
     def list_artifacts(self) -> List[ArtifactMetadata]:
         """
-        PRIORITY 8: Eğitilmiş model dosyalarını listeler.
+        Eğitilmiş model dosyalarını listeler.
         """
         artifacts = []
         for exp_id, data in self._in_memory_status.items():
             if data["status"] == "completed":
+                req_obj = data["request"]
+                algo_name = ""
+                if isinstance(req_obj.model, dict):
+                    algo_name = req_obj.model.get("name") or req_obj.model.get("algorithm") or ""
+                elif req_obj.model is not None:
+                    algo_name = getattr(req_obj.model, "name", "") or getattr(req_obj.model, "algorithm", "")
                 artifacts.append(
                     ArtifactMetadata(
                         id=f"model_{exp_id}",
-                        name=f"{data['request'].model.algorithm} Modeli ({exp_id})",
+                        name=f"{algo_name} Modeli ({exp_id})",
                         type="model",
                         experiment_id=exp_id,
                         created_at=datetime.now(timezone.utc)

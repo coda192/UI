@@ -357,6 +357,69 @@ with st.form("experiment_config_form"):
         with c_v2:
             test_size = st.slider("Test Kümesi Oranı (test_size)", 0.1, 0.5, 0.2, 0.05)
 
+    # Preprocess konfigürasyonu
+    preprocess_payload = None
+    if missing_val != "none" or encoding != "none" or scaling != "none":
+        preprocess_payload = {
+            "handle_missing": (missing_val != "none"),
+            "numeric_imputer": None if missing_val == "none" else missing_val,
+            "categorical_imputer": None if missing_val == "none" else missing_val,
+            "encoding": (encoding != "none"),
+            "encode_method": None if encoding == "none" else encoding,
+            "encoding_parameters": {},
+            "scaling": (scaling != "none"),
+            "scale_method": None if scaling == "none" else scaling,
+            "scaling_parameters": {}
+        }
+
+    # Data split konfigürasyonu
+    data_split_payload = None
+    if val_strategy:
+        data_split_payload = {
+            "method": val_strategy,
+            "parameters": {
+                "test_size": test_size
+            }
+        }
+
+    # Tuning konfigürasyonu
+    tuning_payload = None
+    if selected_mode == "tune":
+        tuning_payload = {
+            "enabled": True,
+            "n_trials": tuning_trials,
+            "sampler": tuning_sampler,
+            "pruner": tuning_pruner,
+            "metric": tuning_scoring,
+            "parameters": {}
+        }
+
+    # Model parameters (sadece preset == "custom" iken overrides ekle, aksi halde {})
+    final_parameters = custom_overrides if (task and algorithm and preset == "custom") else {}
+
+    # API JSON Sözleşmesini Oluştur (Top-Level Canonical Vocabulary)
+    req_payload = {
+        "project_name": exp_name,
+        "dataset_id": selected_dataset_id,
+        "algorithm_type": learning_type,
+        "task": task or "",
+        "mode": selected_mode,
+        "model": {
+            "name": algorithm or "",
+            "preset": preset,
+            "parameters": final_parameters
+        }
+    }
+    if preprocess_payload is not None:
+        req_payload["preprocess"] = preprocess_payload
+    if data_split_payload is not None:
+        req_payload["data_split"] = data_split_payload
+    if tuning_payload is not None:
+        req_payload["tuning"] = tuning_payload
+
+    with st.expander("Gönderilecek Deney Payload'u"):
+        st.json(req_payload)
+
     st.divider()
     
     submitted = st.form_submit_button("🚀 Deneyi Oluştur (Create Experiment)", use_container_width=True)
@@ -365,39 +428,6 @@ with st.form("experiment_config_form"):
         if not task or not algorithm:
             st.error("Lütfen görev ve algoritma seçimini eksiksiz tamamlayın.")
         else:
-            # Sadece preset == "custom" iken overrides ekle, aksi halde boş sözlük {}
-            final_overrides = custom_overrides if preset == "custom" else {}
-
-            # API JSON Sözleşmesini Oluştur
-            req_payload = {
-                "name": exp_name,
-                "dataset_id": selected_dataset_id,
-                "learning_type": learning_type,
-                "task": task,
-                "mode": selected_mode,
-                "model": {
-                    "algorithm": algorithm,
-                    "preset": preset,
-                    "overrides": final_overrides
-                },
-                "preprocessing": {
-                    "missing_value": None if missing_val == "none" else missing_val,
-                    "encoding": None if encoding == "none" else encoding,
-                    "scaling": None if scaling == "none" else scaling
-                },
-                "validation": {
-                    "strategy": val_strategy,
-                    "test_size": test_size
-                },
-                "tuning": {
-                    "enabled": (selected_mode == "tune"),
-                    "sampler": tuning_sampler,
-                    "pruner": tuning_pruner,
-                    "trials": tuning_trials,
-                    "scoring": tuning_scoring
-                } if selected_mode == "tune" else None
-            }
-            
             try:
                 exp = client.create_experiment(req_payload)
                 st.session_state.last_experiment_id = exp["id"]

@@ -1,6 +1,6 @@
 from fastapi.testclient import TestClient
 from backend.main import app
-from backend.schemas import CapabilityResponse, ExperimentCreateRequest, ModelConfig
+from backend.schemas import CapabilityResponse, ExperimentCreateRequest
 
 client = TestClient(app)
 
@@ -223,21 +223,21 @@ def test_get_single_dataset():
 
 def test_create_experiment_default_mode():
     model_req = ExperimentCreateRequest(
-        name="Test_Default_Mode",
+        project_name="Test_Default_Mode",
         dataset_id="ds_class_01",
-        learning_type="supervised",
+        algorithm_type="supervised",
         task="classification",
-        model=ModelConfig(algorithm="xgb_c")
+        model={"name": "xgb_c"}
     )
     assert model_req.mode == "train"
 
     req = {
-        "name": "Test_Default_API",
+        "project_name": "Test_Default_API",
         "dataset_id": "ds_class_01",
-        "learning_type": "supervised",
+        "algorithm_type": "supervised",
         "task": "classification",
         "model": {
-            "algorithm": "xgb_c",
+            "name": "xgb_c",
             "preset": "fast"
         }
     }
@@ -249,13 +249,13 @@ def test_create_experiment_default_mode():
 
 def test_create_experiment_train_mode():
     req = {
-        "name": "Test_Train",
+        "project_name": "Test_Train",
         "dataset_id": "ds_class_01",
-        "learning_type": "supervised",
+        "algorithm_type": "supervised",
         "task": "classification",
         "mode": "train",
         "model": {
-            "algorithm": "xgb_c",
+            "name": "xgb_c",
             "preset": "fast"
         }
     }
@@ -265,17 +265,17 @@ def test_create_experiment_train_mode():
     assert data["status"] == "configured"
     assert data["name"] == "Test_Train"
 
-def test_create_experiment_custom_preset_with_overrides():
+def test_create_experiment_custom_preset_with_parameters():
     req = {
-        "name": "Test_Custom_XGB",
+        "project_name": "Test_Custom_XGB",
         "dataset_id": "ds_class_01",
-        "learning_type": "supervised",
+        "algorithm_type": "supervised",
         "task": "classification",
         "mode": "train",
         "model": {
-            "algorithm": "xgb_c",
+            "name": "xgb_c",
             "preset": "custom",
-            "overrides": {
+            "parameters": {
                 "n_estimators": 500,
                 "learning_rate": 0.05,
                 "max_depth": 8,
@@ -289,48 +289,180 @@ def test_create_experiment_custom_preset_with_overrides():
     assert data["status"] == "configured"
     assert data["name"] == "Test_Custom_XGB"
 
-def test_create_experiment_non_custom_preset_empty_overrides():
+def test_create_experiment_full_nested_canonical_request():
     req = {
-        "name": "Test_Fast_Preset",
+        "project_name": "Test_Full_Nested",
         "dataset_id": "ds_class_01",
-        "learning_type": "supervised",
-        "task": "classification",
-        "mode": "train",
-        "model": {
-            "algorithm": "xgb_c",
-            "preset": "fast",
-            "overrides": {}
-        }
-    }
-    response = client.post("/api/v1/experiments", json=req)
-    assert response.status_code == 200
-    data = response.json()
-    assert data["status"] == "configured"
-
-def test_create_experiment_tune_mode():
-    req = {
-        "name": "Test_Tune",
-        "dataset_id": "ds_class_01",
-        "learning_type": "supervised",
+        "algorithm_type": "supervised",
         "task": "classification",
         "mode": "tune",
         "model": {
-            "algorithm": "catboost",
-            "preset": "strong"
+            "name": "catboost",
+            "preset": "strong",
+            "parameters": {"depth": 6}
+        },
+        "preprocess": {
+            "handle_missing": True,
+            "numeric_imputer": "mean",
+            "encoding": True,
+            "encode_method": "onehot",
+            "scaling": True,
+            "scale_method": "standard"
+        },
+        "data_split": {
+            "method": "holdout",
+            "parameters": {"test_size": 0.25}
         },
         "tuning": {
             "enabled": True,
+            "n_trials": 15,
             "sampler": "tpe",
             "pruner": "median",
-            "trials": 15,
-            "scoring": "f1_macro"
+            "metric": "f1_macro"
         }
     }
     response = client.post("/api/v1/experiments", json=req)
     assert response.status_code == 200
     data = response.json()
     assert data["status"] == "configured"
-    assert data["name"] == "Test_Tune"
+    assert data["name"] == "Test_Full_Nested"
+
+def test_transport_a_pydantic_round_trip():
+    input_dict = {
+        "project_name": "payload_transport_test",
+        "dataset_id": "breast_cancer",
+        "algorithm_type": "supervised",
+        "task": "classification",
+        "mode": "train",
+        "model": {
+            "algorithm": "logreg"
+        }
+    }
+    req = ExperimentCreateRequest(**input_dict)
+    payload = req.model_dump(exclude_none=True)
+    assert payload == input_dict
+
+def test_transport_b_nested_dict_preservation():
+    input_dict = {
+        "project_name": "nested_preservation_test",
+        "dataset_id": "ds_01",
+        "algorithm_type": "supervised",
+        "task": "classification",
+        "mode": "train",
+        "model": {
+            "algorithm": "logreg",
+            "preset": "fast",
+            "overrides": {
+                "C": 1.0
+            }
+        },
+        "preprocess": {
+            "some_future_field": "test",
+            "nested": {
+                "value": 123
+            }
+        }
+    }
+    req = ExperimentCreateRequest(**input_dict)
+    payload = req.model_dump(exclude_none=True)
+    assert payload == input_dict
+    assert payload["model"]["overrides"]["C"] == 1.0
+    assert payload["preprocess"]["nested"]["value"] == 123
+
+def test_transport_c_optional_section_omission():
+    input_dict = {
+        "project_name": "omission_test",
+        "dataset_id": "ds_01",
+        "algorithm_type": "supervised",
+        "task": "classification",
+        "mode": "train",
+        "model": {"name": "test_model"}
+    }
+    req = ExperimentCreateRequest(**input_dict)
+    payload = req.model_dump(exclude_none=True)
+    assert "preprocess" not in payload
+    assert "data_split" not in payload
+    assert "tuning" not in payload
+    assert "data_analyze" not in payload
+    assert "evaluation" not in payload
+    assert "visualization" not in payload
+    assert payload == input_dict
+
+def test_transport_d_fastapi_post_transport():
+    minimal_payload = {
+        "project_name": "payload_transport_test",
+        "dataset_id": "breast_cancer",
+        "algorithm_type": "supervised",
+        "task": "classification",
+        "mode": "train",
+        "model": {
+            "algorithm": "logreg"
+        }
+    }
+    response = client.post("/api/v1/experiments", json=minimal_payload)
+    assert response.status_code == 200
+    meta = response.json()
+    assert meta["name"] == minimal_payload["project_name"]
+    assert meta["status"] == "configured"
+    assert "id" in meta
+
+def test_transport_e_service_storage_preservation():
+    from backend.api.deps import get_service
+    service = get_service()
+
+    payload_sent = {
+        "project_name": "payload_transport_test",
+        "dataset_id": "breast_cancer",
+        "algorithm_type": "supervised",
+        "task": "classification",
+        "mode": "train",
+        "model": {
+            "algorithm": "logreg"
+        }
+    }
+    response = client.post("/api/v1/experiments", json=payload_sent)
+    assert response.status_code == 200
+    meta = response.json()
+    exp_id = meta["id"]
+
+    # Verify directly from service internal memory
+    if hasattr(service, "_experiments"):  # MockAksisService
+        stored_req = service._experiments[exp_id]["request"]
+    else:  # RealAksisService
+        stored_req = service._in_memory_status[exp_id]["request"]
+
+    recovered_payload = stored_req.model_dump(exclude_none=True)
+    assert recovered_payload == payload_sent
+
+def test_transport_f_mock_experiment_flow():
+    from backend.api.deps import get_service
+    service = get_service()
+
+    payload = {
+        "project_name": "mock_flow_test",
+        "dataset_id": "ds_class_01",
+        "algorithm_type": "supervised",
+        "task": "classification",
+        "mode": "train",
+        "model": {
+            "name": "CatBoost"
+        }
+    }
+    req = ExperimentCreateRequest(**payload)
+    meta = service.create_experiment(req)
+    assert meta.name == "mock_flow_test"
+    assert meta.status == "configured"
+
+    # List
+    experiments = service.list_experiments()
+    assert any(e.id == meta.id for e in experiments)
+
+    # Get
+    fetched = service.get_experiment(meta.id)
+    assert fetched.id == meta.id
+    assert fetched.name == "mock_flow_test"
+    assert fetched.status == "configured"
+
 
 def test_artifacts_empty():
     response = client.get("/api/v1/artifacts")

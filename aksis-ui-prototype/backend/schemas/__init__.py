@@ -10,7 +10,10 @@ from .dataset import (
     CorrelationInfo,
     DatasetInfoResponse
 )
-from .experiment import ExperimentCreateRequest, ExperimentMetadata, ModelConfig
+from .experiment import (
+    ExperimentCreateRequest,
+    ExperimentMetadata
+)
 from .result import ExperimentResultResponse, VisualizationData, MetricsData, ArtifactReference
 from .artifact import ArtifactMetadata
 from .inference import InferenceRequest, InferenceResponse
@@ -29,7 +32,6 @@ __all__ = [
     "DatasetInfoResponse",
     "ExperimentCreateRequest",
     "ExperimentMetadata",
-    "ModelConfig",
     "ExperimentResultResponse",
     "VisualizationData",
     "MetricsData",
