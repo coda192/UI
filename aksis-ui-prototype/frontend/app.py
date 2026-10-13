@@ -43,7 +43,7 @@ pages = {
         st.Page("pages/3_experiment_config.py", title="Deney Yapılandırma", icon="⚙️"),
         st.Page("pages/4_execution_results.py", title="Çalıştırma & Sonuçlar", icon="📈"),
     ],
-    "Model & Dağıtım": [
+    "Model & Tahmin": [
         st.Page("pages/5_artifacts_inference.py", title="Modeller & Toplu Tahmin", icon="🚀"),
     ]
 }

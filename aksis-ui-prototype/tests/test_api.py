@@ -106,6 +106,7 @@ def test_datasets_real_aksis_provider(monkeypatch):
         local_data=True,
         target="Class",
         columns_to_use=["Time", "Amount", "V1"],
+        compatible_tasks=["anomaly_detection"],
         # Sensitive fields that must NOT be exposed:
         host="10.0.0.1",
         port=1521,
@@ -137,6 +138,7 @@ def test_datasets_real_aksis_provider(monkeypatch):
     assert ds["target"] == "Class"
     assert ds["source"] == "oracle_db"
     assert ds["columns_to_use"] == ["Time", "Amount", "V1"]
+    assert ds["compatible_tasks"] == ["anomaly_detection"]
 
     # Verify no sensitive credentials leaked
     for sensitive in ["host", "port", "user", "password", "catalog", "schema", "http_schema", "data_query"]:
@@ -151,6 +153,7 @@ def test_datasets_real_aksis_provider(monkeypatch):
     assert detail["description"] == "Gerçek zamanlı fraud tespiti"
     assert detail["target"] == "Class"
     assert detail["source"] == "oracle_db"
+    assert detail["compatible_tasks"] == ["anomaly_detection"]
     for sensitive in ["host", "port", "user", "password", "catalog", "schema", "http_schema", "data_query"]:
         assert sensitive not in detail
 

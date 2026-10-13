@@ -3,8 +3,8 @@ from api.client import AksisAPIError
 from utils.model_guidance import get_algorithm_display_name, get_algorithm_metadata
 from components.parameter_editor import render_parameter_editor
 
-st.title("⚙️ Deney Yapılandırma (Experiment Visual Editor)")
-st.caption("AKSIS Çerçevesi için yeni bir makine öğrenmesi veya optimizasyon deneyi tanımlayın.")
+st.title("⚙️ Deney Yapılandırma")
+st.caption("Makine öğrenmesi deneyiniz için veri seti, görev, model ve çalışma ayarlarını yapılandırın.")
 
 client = st.session_state.client
 
@@ -12,14 +12,14 @@ client = st.session_state.client
 # SUNUM ETİKETLERİ VE GÖRÜNTÜLEME EŞLEŞTİRMELERİ (PRESENTATION ALIASES)
 # ==============================================================================
 TASK_NAMES_TR = {
-    "classification": "Sınıflandırma (Classification)",
-    "regression": "Regresyon (Regression)",
-    "anomaly_detection": "Anomali Tespiti (Anomaly Detection)"
+    "classification": "Sınıflandırma",
+    "regression": "Regresyon",
+    "anomaly_detection": "Anomali Tespiti"
 }
 
 LEARNING_TYPES_TR = {
-    "supervised": "Denetimli Öğrenme (Supervised)",
-    "unsupervised": "Denetimsiz Öğrenme (Unsupervised)"
+    "supervised": "Denetimli Öğrenme",
+    "unsupervised": "Denetimsiz Öğrenme"
 }
 
 MODE_NAMES_TR = {
@@ -99,17 +99,16 @@ if not datasets:
     st.stop()
 
 # ==============================================================================
-# 2. VERİ SETİ VE ÇALIŞMA MODU SEÇİMİ
+# 2. VERİ SETİ SEÇİMİ VE GÖREV ÇÖZÜMLEME (DATASET -> LEARNING TYPE -> TASK FLOW)
 # ==============================================================================
 dataset_options = {d["id"]: f"{d.get('display_name')} ({d['name']})" if d.get("display_name") else d["name"] for d in datasets}
 
-# Oturum durumundaki veri setini hatırla
 default_ds_idx = 0
 if "selected_dataset_id" in st.session_state and st.session_state.selected_dataset_id in dataset_options:
     default_ds_idx = list(dataset_options.keys()).index(st.session_state.selected_dataset_id)
 
 selected_dataset_id = st.selectbox(
-    "📁 Kullanılacak Veri Seti", 
+    "📁 Kullanılacak Veri Seti (Dataset)", 
     options=list(dataset_options.keys()), 
     format_func=lambda x: dataset_options[x], 
     index=default_ds_idx,
@@ -118,72 +117,90 @@ selected_dataset_id = st.selectbox(
 st.session_state.selected_dataset_id = selected_dataset_id
 
 selected_ds_meta = next(d for d in datasets if d["id"] == selected_dataset_id)
-compatible_tasks = selected_ds_meta.get("compatible_tasks", [])
+compatible_tasks = selected_ds_meta.get("compatible_tasks") or []
 
 if not compatible_tasks:
-    st.error("Seçilen veri seti için uyumlu bir görev tanımlanmamış.")
+    st.error(f"Seçilen veri seti ('{selected_ds_meta.get('name')}') için DataSpec üzerinde uyumlu bir görev tanımlanmamış.")
+    st.stop()
+
+# AKSIS capabilities["tasks"] üzerinden uyumlu görev ve öğrenme türlerini çözümle
+caps_tasks_dict = capabilities.get("tasks", {})  # örn: {"supervised": ["classification", "regression"], "unsupervised": ["anomaly_detection"]}
+
+# 1. Her bir compatible_task için hangi learning_type olduğunu bul
+valid_task_to_lt = {}
+for lt, task_list in caps_tasks_dict.items():
+    for t in task_list:
+        if t in compatible_tasks:
+            valid_task_to_lt[t] = lt
+
+valid_tasks = list(valid_task_to_lt.keys())
+valid_learning_types = list(dict.fromkeys(valid_task_to_lt.values()))
+
+if not valid_tasks:
+    st.error(
+        f"Veri setinin uyumlu görevleri ({compatible_tasks}) ile AKSIS çerçevesinin desteklediği görevler ({list(caps_tasks_dict.values())}) arasında eşleşme bulunamadı. "
+        "Veri seti meta verisi ile mevcut AKSIS yetenekleri birbiriyle uyumsuz."
+    )
     st.stop()
 
 # ==============================================================================
-# 3. DENEY FORMU (VISUAL CONFIG EDITOR)
+# 3. DENEY FORMU
 # ==============================================================================
 with st.form("experiment_config_form"):
     
-    st.subheader("1. Genel Parametreler & Çalışma Modu")
+    st.subheader("1. Genel Parametreler & Çalışma Modu (Execution Mode)")
     default_exp_name = f"Deney_{selected_ds_meta['name'].replace('.csv', '')}"
-    exp_name = st.text_input("Deney Adı (Project / Experiment Name)", value=default_exp_name)
+    exp_name = st.text_input("Deney Adı (Project Name)", value=default_exp_name)
     
-    col_mode1, col_mode2 = st.columns(2)
-    
-    with col_mode1:
+    # Bilgi Kartı veya Seçim: Learning Type & Task
+    col_info1, col_info2, col_info3 = st.columns(3)
+
+    with col_info1:
+        if len(valid_learning_types) == 1:
+            learning_type = valid_learning_types[0]
+            st.caption("Öğrenme Türü (Learning Type)")
+            st.markdown(f"**{LEARNING_TYPES_TR.get(learning_type, learning_type)}**")
+        else:
+            learning_type = st.selectbox(
+                "Öğrenme Türü (Learning Type)",
+                options=valid_learning_types,
+                format_func=lambda x: LEARNING_TYPES_TR.get(x, x)
+            )
+
+    with col_info2:
+        # Seçilen learning_type altında kalan geçerli görevler
+        active_valid_tasks = [t for t, lt in valid_task_to_lt.items() if lt == learning_type]
+        if len(active_valid_tasks) == 1:
+            task = active_valid_tasks[0]
+            st.caption("Görev (Task)")
+            st.markdown(f"**{TASK_NAMES_TR.get(task, task)}**")
+        else:
+            task = st.selectbox(
+                "Görev (Task)",
+                options=active_valid_tasks,
+                format_func=lambda x: TASK_NAMES_TR.get(x, x)
+            )
+
+    with col_info3:
         api_modes = capabilities.get("modes", [])
         workflow_modes = [m for m in api_modes if m in ("train", "tune")]
         if not workflow_modes:
-            st.warning("Bu iş akışı için geçerli bir çalıştırma modu (train/tune) bulunamadı.")
+            st.warning("Bu iş akışı için geçerli bir çalıştırma modu bulunamadı.")
             selected_mode = None
         else:
             selected_mode = st.selectbox(
-                "🚀 Çalışma Modu (Mode)",
+                "Çalışma Modu (Execution Mode)",
                 options=workflow_modes,
                 format_func=lambda m: MODE_NAMES_TR.get(m, m),
                 help="'train': Standart model eğitimi | 'tune': Optuna ile otomatik hiperparametre optimizasyonu"
             )
-        
-    with col_mode2:
-        api_learning_types = capabilities.get("learning_types", [])
-        if not api_learning_types:
-            st.warning("Sistemde kayıtlı öğrenme türü bulunamadı.")
-            learning_type = None
-        else:
-            learning_type = st.selectbox(
-                "🧠 Öğrenme Türü (Learning Type)", 
-                options=api_learning_types,
-                format_func=lambda x: LEARNING_TYPES_TR.get(x, x)
-            )
-        
-    # Görev Seçimi (Learning Type ve Dataset Uyumuna Göre Filtrelenir)
-    if learning_type:
-        tasks_by_learning = capabilities.get("tasks", {}).get(learning_type, [])
-        valid_tasks = [t for t in tasks_by_learning if t in compatible_tasks]
-        
-        if not valid_tasks:
-            st.warning(f"Seçilen veri seti '{learning_type}' altında doğrudan uyumlu görev içermiyor.")
-            task = None
-        else:
-            task = st.selectbox(
-                "🎯 Görev (Task)", 
-                options=valid_tasks,
-                format_func=lambda x: TASK_NAMES_TR.get(x, x)
-            )
-    else:
-        task = None
 
     st.divider()
 
     # ==============================================================================
-    # 4. MODEL VE ALGORİTMA SEÇİMİ (Dinamik Task Filtrelemesi)
+    # 4. MODEL VE ALGORİTMA SEÇİMİ (Model & Algorithm)
     # ==============================================================================
-    st.subheader("2. Model ve Algoritma Seçimi")
+    st.subheader("2. Model ve Algoritma (Model & Algorithm)")
     
     custom_overrides = {}
     
@@ -192,14 +209,14 @@ with st.form("experiment_config_form"):
         api_presets = capabilities.get("model_presets", [])
         
         if not available_algos:
-            st.warning("Bu görev için API üzerinde kayıtlı algoritma bulunamadı.")
+            st.warning(f"'{task}' görevi için AKSIS yeteneklerinde kayıtlı algoritma bulunamadı.")
             algorithm = None
             preset = None
         else:
             col_m1, col_m2 = st.columns(2)
             with col_m1:
                 algorithm = st.selectbox(
-                    "Algoritma", 
+                    "Algoritma (Algorithm)", 
                     options=available_algos,
                     format_func=lambda x: get_algorithm_display_name(x, capabilities),
                     help="AKSIS Registry tarafından sunulan algoritmalar"
@@ -269,7 +286,7 @@ with st.form("experiment_config_form"):
     
     if selected_mode == "tune":
         st.divider()
-        st.subheader("⚡ 3. Hiperparametre Optimizasyonu Ayarları (Optuna Tuning)")
+        st.subheader("⚡ 3. Hiperparametre Optimizasyonu (Hyperparameter Tuning)")
         st.caption("Mode='tune' seçildiği için Optuna arama uzayı ve deneme parametreleri aktif edildi.")
         
         tuning_opts = capabilities.get("tuning_options", {})
@@ -313,7 +330,7 @@ with st.form("experiment_config_form"):
     # ==============================================================================
     # 6. ÖNİŞLEME VE DOĞRULAMA AYARLARI (İsteğe Bağlı)
     # ==============================================================================
-    with st.expander("🛠️ Önişleme Seçenekleri (PreprocessConfig)"):
+    with st.expander("🛠️ Önişleme (Preprocessing)"):
         prep_strats = capabilities.get("preprocessing_strategies", {})
         
         missing_options = ["none"] + prep_strats.get("missing_value", [])
@@ -340,7 +357,7 @@ with st.form("experiment_config_form"):
                 format_func=lambda x: PREP_TR.get(x, x)
             )
         
-    with st.expander("📐 Doğrulama Seçenekleri (Validation / DataSplitConfig)"):
+    with st.expander("📐 Veri Bölümleme ve Doğrulama (Data Splitting & Validation)"):
         val_options = capabilities.get("validation_options", [])
         
         c_v1, c_v2 = st.columns(2)

@@ -311,6 +311,7 @@ class RealAksisService(AksisService):
             local_data = spec.get("local_data")
             target = spec.get("target")
             columns_to_use = spec.get("columns_to_use")
+            compatible_tasks = spec.get("compatible_tasks", ())
         else:
             spec_id = getattr(spec, "id", "")
             display_name = getattr(spec, "display_name", None)
@@ -319,11 +320,19 @@ class RealAksisService(AksisService):
             local_data = getattr(spec, "local_data", None)
             target = getattr(spec, "target", None)
             columns_to_use = getattr(spec, "columns_to_use", None)
+            compatible_tasks = getattr(spec, "compatible_tasks", ())
 
         if hasattr(source, "value"):
             source = source.value
         elif source is not None:
             source = str(source)
+
+        if isinstance(compatible_tasks, (list, tuple, set)):
+            norm_compatible_tasks = [str(t) for t in compatible_tasks]
+        elif compatible_tasks:
+            norm_compatible_tasks = [str(compatible_tasks)]
+        else:
+            norm_compatible_tasks = []
 
         return DatasetMetadata(
             id=spec_id,
@@ -338,7 +347,7 @@ class RealAksisService(AksisService):
             column_count=None,
             columns=[],
             identifier_columns=[],
-            compatible_tasks=[],
+            compatible_tasks=norm_compatible_tasks,
         )
 
     def list_datasets(self) -> List[DatasetMetadata]:

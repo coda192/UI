@@ -108,6 +108,7 @@ def test_real_aksis_service_dataspec_mapping_and_security():
         local_data=True,
         target="Class",
         columns_to_use=["Time", "Amount", "V1", "V2"],
+        compatible_tasks=["anomaly_detection"],
         # Sensitive fields that MUST be excluded:
         host="192.168.1.100",
         port=1521,
@@ -130,13 +131,13 @@ def test_real_aksis_service_dataspec_mapping_and_security():
     assert metadata.local_data is True
     assert metadata.target == "Class"
     assert metadata.columns_to_use == ["Time", "Amount", "V1", "V2"]
+    assert metadata.compatible_tasks == ["anomaly_detection"]
     
     # Verify non-DataSpec fields are set to empty/None
     assert metadata.row_count is None
     assert metadata.column_count is None
     assert metadata.columns == []
     assert metadata.identifier_columns == []
-    assert metadata.compatible_tasks == []
     
     # Verify sensitive fields are NOT in the schema
     meta_dict = metadata.model_dump()
@@ -588,6 +589,91 @@ def test_mock_service_histogram():
     # Categorical Department has None histogram
     dept = cols["Department"]
     assert dept.histogram is None
+
+
+def test_real_aksis_service_dataspec_compatible_tasks_types():
+    from backend.services.aksis_service import RealAksisService
+    from types import SimpleNamespace
+
+    service = RealAksisService()
+
+    # 1. Classification dataset
+    spec_cls = SimpleNamespace(
+        id="breast_cancer",
+        display_name="Breast Cancer",
+        source="scikit_learn",
+        target="target",
+        compatible_tasks=["classification"]
+    )
+    meta_cls = service._map_dataspec_to_metadata(spec_cls)
+    assert meta_cls.compatible_tasks == ["classification"]
+
+    # 2. Regression dataset
+    spec_reg = SimpleNamespace(
+        id="california_housing",
+        display_name="California Housing",
+        source="scikit_learn",
+        target="MedHouseVal",
+        compatible_tasks=["regression"]
+    )
+    meta_reg = service._map_dataspec_to_metadata(spec_reg)
+    assert meta_reg.compatible_tasks == ["regression"]
+
+    # 3. Anomaly detection dataset
+    spec_anom = SimpleNamespace(
+        id="kddcup99",
+        display_name="KDDCup99",
+        source="csv_file",
+        target=None,
+        compatible_tasks=["anomaly_detection"]
+    )
+    meta_anom = service._map_dataspec_to_metadata(spec_anom)
+    assert meta_anom.compatible_tasks == ["anomaly_detection"]
+
+    # 4. Dict format
+    spec_dict = {
+        "id": "dict_ds",
+        "display_name": "Dict Dataset",
+        "compatible_tasks": ("classification",)
+    }
+    meta_dict = service._map_dataspec_to_metadata(spec_dict)
+    assert meta_dict.compatible_tasks == ["classification"]
+
+    # 5. Missing / None compatible_tasks defaults to empty list
+    spec_none = SimpleNamespace(id="no_tasks")
+    meta_none = service._map_dataspec_to_metadata(spec_none)
+    assert meta_none.compatible_tasks == []
+
+
+def test_dataset_to_learning_type_and_task_resolution_logic():
+    """Verify the capability-driven resolution algorithm used in frontend."""
+    caps_tasks_dict = {
+        "supervised": ["classification", "regression"],
+        "unsupervised": ["anomaly_detection"]
+    }
+
+    # Case A: Unique classification dataset
+    compat_a = ["classification"]
+    task_to_lt_a = {t: lt for lt, t_list in caps_tasks_dict.items() for t in t_list if t in compat_a}
+    assert list(task_to_lt_a.keys()) == ["classification"]
+    assert list(dict.fromkeys(task_to_lt_a.values())) == ["supervised"]
+
+    # Case B: Unique anomaly detection dataset
+    compat_b = ["anomaly_detection"]
+    task_to_lt_b = {t: lt for lt, t_list in caps_tasks_dict.items() for t in t_list if t in compat_b}
+    assert list(task_to_lt_b.keys()) == ["anomaly_detection"]
+    assert list(dict.fromkeys(task_to_lt_b.values())) == ["unsupervised"]
+
+    # Case C: Dataset supporting both classification and regression (multi-task)
+    compat_c = ["classification", "regression"]
+    task_to_lt_c = {t: lt for lt, t_list in caps_tasks_dict.items() for t in t_list if t in compat_c}
+    assert set(task_to_lt_c.keys()) == {"classification", "regression"}
+    assert list(dict.fromkeys(task_to_lt_c.values())) == ["supervised"]
+
+    # Case D: Incompatible / unknown task metadata
+    compat_d = ["unsupported_future_task"]
+    task_to_lt_d = {t: lt for lt, t_list in caps_tasks_dict.items() for t in t_list if t in compat_d}
+    assert len(task_to_lt_d) == 0
 
 
 
