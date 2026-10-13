@@ -144,311 +144,311 @@ if not valid_tasks:
     st.stop()
 
 # ==============================================================================
-# 3. DENEY FORMU
+# 3. GENEL PARAMETRELER & ÇALIŞMA MODU
 # ==============================================================================
-with st.form("experiment_config_form"):
-    
-    st.subheader("1. Genel Parametreler & Çalışma Modu (Execution Mode)")
-    default_exp_name = f"Deney_{selected_ds_meta['name'].replace('.csv', '')}"
-    exp_name = st.text_input("Deney Adı (Project Name)", value=default_exp_name)
-    
-    # Bilgi Kartı veya Seçim: Learning Type & Task
-    col_info1, col_info2, col_info3 = st.columns(3)
+st.subheader("1. Genel Parametreler & Çalışma Modu (Execution Mode)")
+default_exp_name = f"Deney_{selected_ds_meta['name'].replace('.csv', '')}"
+exp_name = st.text_input("Deney Adı (Project Name)", value=default_exp_name)
 
-    with col_info1:
-        if len(valid_learning_types) == 1:
-            learning_type = valid_learning_types[0]
-            st.caption("Öğrenme Türü (Learning Type)")
-            st.markdown(f"**{LEARNING_TYPES_TR.get(learning_type, learning_type)}**")
-        else:
-            learning_type = st.selectbox(
-                "Öğrenme Türü (Learning Type)",
-                options=valid_learning_types,
-                format_func=lambda x: LEARNING_TYPES_TR.get(x, x)
-            )
+# Bilgi Kartı veya Seçim: Learning Type & Task
+col_info1, col_info2, col_info3 = st.columns(3)
 
-    with col_info2:
-        # Seçilen learning_type altında kalan geçerli görevler
-        active_valid_tasks = [t for t, lt in valid_task_to_lt.items() if lt == learning_type]
-        if len(active_valid_tasks) == 1:
-            task = active_valid_tasks[0]
-            st.caption("Görev (Task)")
-            st.markdown(f"**{TASK_NAMES_TR.get(task, task)}**")
-        else:
-            task = st.selectbox(
-                "Görev (Task)",
-                options=active_valid_tasks,
-                format_func=lambda x: TASK_NAMES_TR.get(x, x)
-            )
-
-    with col_info3:
-        api_modes = capabilities.get("modes", [])
-        workflow_modes = [m for m in api_modes if m in ("train", "tune")]
-        if not workflow_modes:
-            st.warning("Bu iş akışı için geçerli bir çalıştırma modu bulunamadı.")
-            selected_mode = None
-        else:
-            selected_mode = st.selectbox(
-                "Çalışma Modu (Execution Mode)",
-                options=workflow_modes,
-                format_func=lambda m: MODE_NAMES_TR.get(m, m),
-                help="'train': Standart model eğitimi | 'tune': Optuna ile otomatik hiperparametre optimizasyonu"
-            )
-
-    st.divider()
-
-    # ==============================================================================
-    # 4. MODEL VE ALGORİTMA SEÇİMİ (Model & Algorithm)
-    # ==============================================================================
-    st.subheader("2. Model ve Algoritma (Model & Algorithm)")
-    
-    custom_overrides = {}
-    
-    if task:
-        available_algos = capabilities.get("algorithms", {}).get(task, [])
-        api_presets = capabilities.get("model_presets", [])
-        
-        if not available_algos:
-            st.warning(f"'{task}' görevi için AKSIS yeteneklerinde kayıtlı algoritma bulunamadı.")
-            algorithm = None
-            preset = None
-        else:
-            col_m1, col_m2 = st.columns(2)
-            with col_m1:
-                algorithm = st.selectbox(
-                    "Algoritma (Algorithm)", 
-                    options=available_algos,
-                    format_func=lambda x: get_algorithm_display_name(x, capabilities),
-                    help="AKSIS Registry tarafından sunulan algoritmalar"
-                )
-            with col_m2:
-                if api_presets:
-                    preset = st.selectbox(
-                        "Model Hazır Ayarı (Model Preset)", 
-                        options=api_presets,
-                        format_func=lambda x: PRESET_NAMES_TR.get(x, x)
-                    )
-                else:
-                    preset = None
-                
-            # Uyumsuz session state parametrelerini temizle (State cleanup)
-            current_model_context = f"{task}_{algorithm}_{preset}"
-            if st.session_state.get("last_model_context") != current_model_context:
-                for k in list(st.session_state.keys()):
-                    if k.startswith("custom_param_"):
-                        del st.session_state[k]
-                st.session_state.last_model_context = current_model_context
-
-            # Seçilen model için anlık karar destek rehberi
-            if algorithm:
-                algo_meta = get_algorithm_metadata(algorithm, capabilities)
-                display_title = algo_meta.get("display_name") or algorithm
-                description = algo_meta.get("description", "Model açıklaması sağlanmamış.")
-                strengths = algo_meta.get("strengths", [])
-                limitations = algo_meta.get("limitations", [])
-                best_for = algo_meta.get("best_for", [])
-                
-                with st.container(border=True):
-                    st.markdown(f"### ⚡ {display_title}")
-                    if display_title != algorithm:
-                        st.caption(f"`{algorithm}`")
-                    st.write(description)
-                    if best_for:
-                        st.markdown(f"**🎯 En Uygun Senaryo:** {', '.join(best_for) if isinstance(best_for, list) else best_for}")
-                    if strengths:
-                        st.caption(f"**✅ Güçlü Yönler:** {', '.join(strengths) if isinstance(strengths, list) else strengths}")
-                    if limitations:
-                        st.caption(f"**⚠️ Dikkat Edilmesi Gerekenler:** {', '.join(limitations) if isinstance(limitations, list) else limitations}")
-
-            # ==============================================================================
-            # ÖZEL MODEL PARAMETRELERİ (Yalnızca preset == "custom" İken Açılır)
-            # ==============================================================================
-            if preset == "custom" and algorithm:
-                st.divider()
-                param_schemas_dict = capabilities.get("parameter_schema") or {}
-                algo_param_schema = param_schemas_dict.get(task, {}).get(algorithm)
-                custom_overrides = render_parameter_editor(
-                    algo_param_schema,
-                    key_prefix=f"custom_param_{task}_{algorithm}"
-                )
+with col_info1:
+    if len(valid_learning_types) == 1:
+        learning_type = valid_learning_types[0]
+        st.caption("Öğrenme Türü (Learning Type)")
+        st.markdown(f"**{LEARNING_TYPES_TR.get(learning_type, learning_type)}**")
     else:
+        learning_type = st.selectbox(
+            "Öğrenme Türü (Learning Type)",
+            options=valid_learning_types,
+            format_func=lambda x: LEARNING_TYPES_TR.get(x, x)
+        )
+
+with col_info2:
+    # Seçilen learning_type altında kalan geçerli görevler
+    active_valid_tasks = [t for t, lt in valid_task_to_lt.items() if lt == learning_type]
+    if len(active_valid_tasks) == 1:
+        task = active_valid_tasks[0]
+        st.caption("Görev (Task)")
+        st.markdown(f"**{TASK_NAMES_TR.get(task, task)}**")
+    else:
+        task = st.selectbox(
+            "Görev (Task)",
+            options=active_valid_tasks,
+            format_func=lambda x: TASK_NAMES_TR.get(x, x)
+        )
+
+with col_info3:
+    api_modes = capabilities.get("modes", [])
+    workflow_modes = [m for m in api_modes if m in ("train", "tune")]
+    if not workflow_modes:
+        st.warning("Bu iş akışı için geçerli bir çalıştırma modu bulunamadı.")
+        selected_mode = None
+    else:
+        selected_mode = st.selectbox(
+            "Çalışma Modu (Execution Mode)",
+            options=workflow_modes,
+            format_func=lambda m: MODE_NAMES_TR.get(m, m),
+            help="'train': Standart model eğitimi | 'tune': Optuna ile otomatik hiperparametre optimizasyonu"
+        )
+
+st.divider()
+
+# ==============================================================================
+# 4. MODEL VE ALGORİTMA SEÇİMİ (Model & Algorithm)
+# ==============================================================================
+st.subheader("2. Model ve Algoritma (Model & Algorithm)")
+
+custom_overrides = {}
+
+if task:
+    available_algos = capabilities.get("algorithms", {}).get(task, [])
+    api_presets = capabilities.get("model_presets", [])
+    
+    if not available_algos:
+        st.warning(f"'{task}' görevi için AKSIS yeteneklerinde kayıtlı algoritma bulunamadı.")
         algorithm = None
         preset = None
-        st.info("Lütfen önce geçerli bir görev seçin.")
-
-    # ==============================================================================
-    # 5. HİPERPARAMETRE OPTİMİZASYONU (Tuning - Yalnızca Mode='tune' İken Açılır)
-    # ==============================================================================
-    tuning_sampler = None
-    tuning_pruner = None
-    tuning_trials = 10
-    tuning_scoring = None
-    
-    if selected_mode == "tune":
-        st.divider()
-        st.subheader("⚡ 3. Hiperparametre Optimizasyonu (Hyperparameter Tuning)")
-        st.caption("Mode='tune' seçildiği için Optuna arama uzayı ve deneme parametreleri aktif edildi.")
-        
-        tuning_opts = capabilities.get("tuning_options", {})
-        samplers = tuning_opts.get("sampler", [])
-        pruners = tuning_opts.get("pruner", [])
-        
-        scoring_opts = capabilities.get("scoring_options", {}).get(task, [])
+    else:
+        col_m1, col_m2 = st.columns(2)
+        with col_m1:
+            algorithm = st.selectbox(
+                "Algoritma (Algorithm)", 
+                options=available_algos,
+                format_func=lambda x: get_algorithm_display_name(x, capabilities),
+                help="AKSIS Registry tarafından sunulan algoritmalar",
+                key="model_algo_select"
+            )
+        with col_m2:
+            if api_presets:
+                preset = st.selectbox(
+                    "Model Hazır Ayarı (Model Preset)", 
+                    options=api_presets,
+                    format_func=lambda x: PRESET_NAMES_TR.get(x, x),
+                    key="model_preset_select"
+                )
+            else:
+                preset = None
             
-        t_col1, t_col2 = st.columns(2)
-        with t_col1:
-            if samplers:
-                tuning_sampler = st.selectbox(
-                    "Arama Örnekleyicisi (Sampler)",
-                    options=samplers,
-                    format_func=lambda s: TUNING_SAMPLER_TR.get(s, s)
-                )
-            else:
-                tuning_sampler = None
-            tuning_trials = st.slider("Deneme Sayısı (n_trials)", min_value=3, max_value=100, value=10, step=1)
-            
-        with t_col2:
-            if pruners:
-                tuning_pruner = st.selectbox(
-                    "Budayıcı (Pruner)",
-                    options=pruners,
-                    format_func=lambda p: TUNING_PRUNER_TR.get(p, p)
-                )
-            else:
-                tuning_pruner = None
-                
-            if scoring_opts:
-                tuning_scoring = st.selectbox(
-                    "Optimizasyon Hedef Skoru (Scoring Metric)",
-                    options=scoring_opts
-                )
-            else:
-                tuning_scoring = None
+        # Uyumsuz session state parametrelerini temizle (State cleanup)
+        current_model_context = f"{task}_{algorithm}_{preset}"
+        if st.session_state.get("last_model_context") != current_model_context:
+            for k in list(st.session_state.keys()):
+                if k.startswith("custom_param_"):
+                    del st.session_state[k]
+            st.session_state.last_model_context = current_model_context
 
+        # Seçilen model için anlık karar destek rehberi
+        if algorithm:
+            algo_meta = get_algorithm_metadata(algorithm, capabilities)
+            display_title = algo_meta.get("display_name") or algorithm
+            description = algo_meta.get("description", "Model açıklaması sağlanmamış.")
+            strengths = algo_meta.get("strengths", [])
+            limitations = algo_meta.get("limitations", [])
+            best_for = algo_meta.get("best_for", [])
+            
+            with st.container(border=True):
+                st.markdown(f"### ⚡ {display_title}")
+                if display_title != algorithm:
+                    st.caption(f"`{algorithm}`")
+                st.write(description)
+                if best_for:
+                    st.markdown(f"**🎯 En Uygun Senaryo:** {', '.join(best_for) if isinstance(best_for, list) else best_for}")
+                if strengths:
+                    st.caption(f"**✅ Güçlü Yönler:** {', '.join(strengths) if isinstance(strengths, list) else strengths}")
+                if limitations:
+                    st.caption(f"**⚠️ Dikkat Edilmesi Gerekenler:** {', '.join(limitations) if isinstance(limitations, list) else limitations}")
+
+        # ==============================================================================
+        # ÖZEL MODEL PARAMETRELERİ (Yalnızca preset == "custom" İken Açılır)
+        # ==============================================================================
+        if preset == "custom" and algorithm:
+            st.divider()
+            param_schemas_dict = capabilities.get("parameter_schema") or {}
+            algo_param_schema = param_schemas_dict.get(task, {}).get(algorithm)
+            custom_overrides = render_parameter_editor(
+                algo_param_schema,
+                key_prefix=f"custom_param_{task}_{algorithm}"
+            )
+else:
+    algorithm = None
+    preset = None
+    st.info("Lütfen önce geçerli bir görev seçin.")
+
+# ==============================================================================
+# 5. HİPERPARAMETRE OPTİMİZASYONU (Tuning - Yalnızca Mode='tune' İken Açılır)
+# ==============================================================================
+tuning_sampler = None
+tuning_pruner = None
+tuning_trials = 10
+tuning_scoring = None
+
+if selected_mode == "tune":
     st.divider()
-
-    # ==============================================================================
-    # 6. ÖNİŞLEME VE DOĞRULAMA AYARLARI (İsteğe Bağlı)
-    # ==============================================================================
-    with st.expander("🛠️ Önişleme (Preprocessing)"):
-        prep_strats = capabilities.get("preprocessing_strategies", {})
+    st.subheader("⚡ 3. Hiperparametre Optimizasyonu (Hyperparameter Tuning)")
+    st.caption("Mode='tune' seçildiği için Optuna arama uzayı ve deneme parametreleri aktif edildi.")
+    
+    tuning_opts = capabilities.get("tuning_options", {})
+    samplers = tuning_opts.get("sampler", [])
+    pruners = tuning_opts.get("pruner", [])
+    
+    scoring_opts = capabilities.get("scoring_options", {}).get(task, [])
         
-        missing_options = ["none"] + prep_strats.get("missing_value", [])
-        encoding_options = ["none"] + prep_strats.get("encoding", [])
-        scaling_options = ["none"] + prep_strats.get("scaling", [])
-        
-        c_p1, c_p2, c_p3 = st.columns(3)
-        with c_p1:
-            missing_val = st.selectbox(
-                "Eksik Değer Yönetimi (Imputer)", 
-                missing_options,
-                format_func=lambda x: PREP_TR.get(x, x)
+    t_col1, t_col2 = st.columns(2)
+    with t_col1:
+        if samplers:
+            tuning_sampler = st.selectbox(
+                "Arama Örnekleyicisi (Sampler)",
+                options=samplers,
+                format_func=lambda s: TUNING_SAMPLER_TR.get(s, s)
             )
-        with c_p2:
-            encoding = st.selectbox(
-                "Kategorik Kodlama (Encoding)", 
-                encoding_options,
-                format_func=lambda x: PREP_TR.get(x, x)
-            )
-        with c_p3:
-            scaling = st.selectbox(
-                "Sayısal Ölçeklendirme (Scaling)", 
-                scaling_options,
-                format_func=lambda x: PREP_TR.get(x, x)
-            )
+        else:
+            tuning_sampler = None
+        tuning_trials = st.slider("Deneme Sayısı (n_trials)", min_value=3, max_value=100, value=10, step=1)
         
-    with st.expander("📐 Veri Bölümleme ve Doğrulama (Data Splitting & Validation)"):
-        val_options = capabilities.get("validation_options", [])
-        
-        c_v1, c_v2 = st.columns(2)
-        with c_v1:
-            if val_options:
-                val_strategy = st.selectbox(
-                    "Doğrulama / Bölümleme Yöntemi", 
-                    val_options,
-                    format_func=lambda x: VAL_TR.get(x, x)
-                )
-            else:
-                st.warning("Doğrulama yöntemi bulunamadı.")
-                val_strategy = None
-        with c_v2:
-            test_size = st.slider("Test Kümesi Oranı (test_size)", 0.1, 0.5, 0.2, 0.05)
+    with t_col2:
+        if pruners:
+            tuning_pruner = st.selectbox(
+                "Budayıcı (Pruner)",
+                options=pruners,
+                format_func=lambda p: TUNING_PRUNER_TR.get(p, p)
+            )
+        else:
+            tuning_pruner = None
+            
+        if scoring_opts:
+            tuning_scoring = st.selectbox(
+                "Optimizasyon Hedef Skoru (Scoring Metric)",
+                options=scoring_opts
+            )
+        else:
+            tuning_scoring = None
 
-    # Preprocess konfigürasyonu
-    preprocess_payload = None
-    if missing_val != "none" or encoding != "none" or scaling != "none":
-        preprocess_payload = {
-            "handle_missing": (missing_val != "none"),
-            "numeric_imputer": None if missing_val == "none" else missing_val,
-            "categorical_imputer": None if missing_val == "none" else missing_val,
-            "encoding": (encoding != "none"),
-            "encode_method": None if encoding == "none" else encoding,
-            "encoding_parameters": {},
-            "scaling": (scaling != "none"),
-            "scale_method": None if scaling == "none" else scaling,
-            "scaling_parameters": {}
-        }
+st.divider()
 
-    # Data split konfigürasyonu
-    data_split_payload = None
-    if val_strategy:
-        data_split_payload = {
-            "method": val_strategy,
-            "parameters": {
-                "test_size": test_size
-            }
-        }
+# ==============================================================================
+# 6. ÖNİŞLEME VE DOĞRULAMA AYARLARI (İsteğe Bağlı)
+# ==============================================================================
+with st.expander("🛠️ Önişleme (Preprocessing)"):
+    prep_strats = capabilities.get("preprocessing_strategies", {})
+    
+    missing_options = ["none"] + prep_strats.get("missing_value", [])
+    encoding_options = ["none"] + prep_strats.get("encoding", [])
+    scaling_options = ["none"] + prep_strats.get("scaling", [])
+    
+    c_p1, c_p2, c_p3 = st.columns(3)
+    with c_p1:
+        missing_val = st.selectbox(
+            "Eksik Değer Yönetimi (Imputer)", 
+            missing_options,
+            format_func=lambda x: PREP_TR.get(x, x)
+        )
+    with c_p2:
+        encoding = st.selectbox(
+            "Kategorik Kodlama (Encoding)", 
+            encoding_options,
+            format_func=lambda x: PREP_TR.get(x, x)
+        )
+    with c_p3:
+        scaling = st.selectbox(
+            "Sayısal Ölçeklendirme (Scaling)", 
+            scaling_options,
+            format_func=lambda x: PREP_TR.get(x, x)
+        )
+    
+with st.expander("📐 Veri Bölümleme ve Doğrulama (Data Splitting & Validation)"):
+    val_options = capabilities.get("validation_options", [])
+    
+    c_v1, c_v2 = st.columns(2)
+    with c_v1:
+        if val_options:
+            val_strategy = st.selectbox(
+                "Doğrulama / Bölümleme Yöntemi", 
+                val_options,
+                format_func=lambda x: VAL_TR.get(x, x)
+            )
+        else:
+            st.warning("Doğrulama yöntemi bulunamadı.")
+            val_strategy = None
+    with c_v2:
+        test_size = st.slider("Test Kümesi Oranı (test_size)", 0.1, 0.5, 0.2, 0.05)
 
-    # Tuning konfigürasyonu
-    tuning_payload = None
-    if selected_mode == "tune":
-        tuning_payload = {
-            "enabled": True,
-            "n_trials": tuning_trials,
-            "sampler": tuning_sampler,
-            "pruner": tuning_pruner,
-            "metric": tuning_scoring,
-            "parameters": {}
-        }
+# Preprocess konfigürasyonu
+preprocess_payload = None
+if missing_val != "none" or encoding != "none" or scaling != "none":
+    preprocess_payload = {
+        "handle_missing": (missing_val != "none"),
+        "numeric_imputer": None if missing_val == "none" else missing_val,
+        "categorical_imputer": None if missing_val == "none" else missing_val,
+        "encoding": (encoding != "none"),
+        "encode_method": None if encoding == "none" else encoding,
+        "encoding_parameters": {},
+        "scaling": (scaling != "none"),
+        "scale_method": None if scaling == "none" else scaling,
+        "scaling_parameters": {}
+    }
 
-    # Model parameters (sadece preset == "custom" iken overrides ekle, aksi halde {})
-    final_parameters = custom_overrides if (task and algorithm and preset == "custom") else {}
-
-    # API JSON Sözleşmesini Oluştur (Top-Level Canonical Vocabulary)
-    req_payload = {
-        "project_name": exp_name,
-        "dataset_id": selected_dataset_id,
-        "algorithm_type": learning_type,
-        "task": task or "",
-        "mode": selected_mode,
-        "model": {
-            "name": algorithm or "",
-            "preset": preset,
-            "parameters": final_parameters
+# Data split konfigürasyonu
+data_split_payload = None
+if val_strategy:
+    data_split_payload = {
+        "method": val_strategy,
+        "parameters": {
+            "test_size": test_size
         }
     }
-    if preprocess_payload is not None:
-        req_payload["preprocess"] = preprocess_payload
-    if data_split_payload is not None:
-        req_payload["data_split"] = data_split_payload
-    if tuning_payload is not None:
-        req_payload["tuning"] = tuning_payload
 
-    with st.expander("Gönderilecek Deney Payload'u"):
-        st.json(req_payload)
+# Tuning konfigürasyonu
+tuning_payload = None
+if selected_mode == "tune":
+    tuning_payload = {
+        "enabled": True,
+        "n_trials": tuning_trials,
+        "sampler": tuning_sampler,
+        "pruner": tuning_pruner,
+        "metric": tuning_scoring,
+        "parameters": {}
+    }
 
-    st.divider()
-    
-    submitted = st.form_submit_button("🚀 Deneyi Oluştur (Create Experiment)", use_container_width=True)
-    
-    if submitted:
-        if not task or not algorithm:
-            st.error("Lütfen görev ve algoritma seçimini eksiksiz tamamlayın.")
-        else:
-            try:
-                exp = client.create_experiment(req_payload)
-                st.session_state.last_experiment_id = exp["id"]
-                st.success(f"✅ '{exp['name']}' ({exp['id']}) başarıyla yapılandırıldı! (Mod: {selected_mode.upper()})")
-                st.info("Eğitimi veya optimizasyonu başlatmak için 'Çalıştırma & Sonuçlar' sayfasına geçebilirsiniz.")
-            except AksisAPIError as e:
-                st.error(f"Hata: {str(e)}")
+# Model parameters (sadece preset == "custom" iken overrides ekle, aksi halde {})
+final_parameters = custom_overrides if (task and algorithm and preset == "custom") else {}
+
+# API JSON Sözleşmesini Oluştur (Top-Level Canonical Vocabulary)
+req_payload = {
+    "project_name": exp_name,
+    "dataset_id": selected_dataset_id,
+    "algorithm_type": learning_type,
+    "task": task or "",
+    "mode": selected_mode,
+    "model": {
+        "name": algorithm or "",
+        "preset": preset,
+        "parameters": final_parameters
+    }
+}
+if preprocess_payload is not None:
+    req_payload["preprocess"] = preprocess_payload
+if data_split_payload is not None:
+    req_payload["data_split"] = data_split_payload
+if tuning_payload is not None:
+    req_payload["tuning"] = tuning_payload
+
+with st.expander("Gönderilecek Deney Payload'u"):
+    st.json(req_payload)
+
+st.divider()
+
+submitted = st.button("🚀 Deneyi Oluştur (Create Experiment)", use_container_width=True, type="primary")
+
+if submitted:
+    if not task or not algorithm:
+        st.error("Lütfen görev ve algoritma seçimini eksiksiz tamamlayın.")
+    else:
+        try:
+            exp = client.create_experiment(req_payload)
+            st.session_state.last_experiment_id = exp["id"]
+            st.success(f"✅ '{exp['name']}' ({exp['id']}) başarıyla yapılandırıldı! (Mod: {selected_mode.upper()})")
+            st.info("Eğitimi veya optimizasyonu başlatmak için 'Çalıştırma & Sonuçlar' sayfasına geçebilirsiniz.")
+        except AksisAPIError as e:
+            st.error(f"Hata: {str(e)}")
