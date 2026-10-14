@@ -32,7 +32,7 @@ PRESET_NAMES_TR = {
     "baseline": "Temel Seviye (baseline)",
     "fast": "Hızlı (fast)",
     "strong": "Yüksek Başarım (strong)",
-    "custom": "Özel Parametre Ayarı (custom)",
+    "custom": "Özel Parametre Ayarı (custom) — Geçici Olarak Kapalı",
     "interpretable": "Yorumlanabilir (interpretable)",
     "accurate": "Yüksek Doğruluk (accurate)",
     "default": "Varsayılan (default)"
@@ -265,12 +265,14 @@ if task:
         # ==============================================================================
         if preset == "custom" and algorithm:
             st.divider()
-            param_schemas_dict = capabilities.get("parameter_schema") or {}
-            algo_param_schema = param_schemas_dict.get(task, {}).get(algorithm)
-            custom_overrides = render_parameter_editor(
-                algo_param_schema,
-                key_prefix=f"custom_param_{task}_{algorithm}"
-            )
+            # TODO: Re-enable custom parameter editing after the schema-driven parameter contract is finalized.
+            st.info("Custom model parameter configuration is temporarily disabled for the demo.")
+            # param_schemas_dict = capabilities.get("parameter_schema") or {}
+            # algo_param_schema = param_schemas_dict.get(task, {}).get(algorithm)
+            # custom_overrides = render_parameter_editor(
+            #     algo_param_schema,
+            #     key_prefix=f"custom_param_{task}_{algorithm}"
+            # )
 else:
     algorithm = None
     preset = None

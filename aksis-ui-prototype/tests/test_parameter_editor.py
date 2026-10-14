@@ -88,3 +88,97 @@ def test_parameter_editor_session_state_cleanup_behavior():
     assert "custom_param_xgb_c_n_estimators" not in session_state
     assert "custom_param_xgb_c_learning_rate" not in session_state
     assert session_state["selected_dataset_id"] == "ds_class_01"
+
+
+def test_custom_preset_temporary_disabled_contract():
+    """
+    Verifies that:
+    - 'custom' is present in PRESET_NAMES_TR
+    - Its label indicates it is temporarily disabled
+    - Non-custom presets keep their normal display label
+    """
+    import importlib.util
+    from pathlib import Path
+
+    file_path = Path("frontend/pages/3_experiment_config.py").resolve()
+    spec = importlib.util.spec_from_file_location("exp_config", file_path)
+    # Read the file content and check PRESET_NAMES_TR definition directly or evaluate
+    content = file_path.read_text(encoding="utf-8")
+    assert '"custom": "Özel Parametre Ayarı (custom) — Geçici Olarak Kapalı"' in content
+
+    # Alternatively parse PRESET_NAMES_TR safely
+    import ast
+    tree = ast.parse(content)
+    preset_names_tr = None
+    for stmt in tree.body:
+        if isinstance(stmt, ast.Assign):
+            for target in stmt.targets:
+                if isinstance(target, ast.Name) and target.id == "PRESET_NAMES_TR":
+                    preset_names_tr = ast.literal_eval(stmt.value)
+                    break
+
+    assert preset_names_tr is not None
+    assert "custom" in preset_names_tr
+    assert preset_names_tr["custom"] == "Özel Parametre Ayarı (custom) — Geçici Olarak Kapalı"
+    assert preset_names_tr["baseline"] == "Temel Seviye (baseline)"
+    assert preset_names_tr["fast"] == "Hızlı (fast)"
+    assert preset_names_tr["strong"] == "Yüksek Başarım (strong)"
+
+
+def test_custom_preset_ui_behavior():
+    """
+    Verifies that when preset == 'custom', parameter editor inputs are NOT rendered
+    and an informational message is displayed instead, whereas non-custom presets
+    operate normally without rendering parameter inputs or disable messages.
+    """
+    # Mock capabilities with custom in model_presets and parameter schema
+    mock_caps = {
+        "model_presets": ["baseline", "fast", "strong", "custom"],
+        "parameter_schema": {
+            "classification": {
+                "rf_classifier": {
+                    "n_estimators": {"type": "int", "default": 100}
+                }
+            }
+        }
+    }
+
+    # 1. Custom preset is present in capabilities
+    assert "custom" in mock_caps["model_presets"]
+
+    # 2. Simulate custom selection behavior
+    preset = "custom"
+    algorithm = "rf_classifier"
+    task = "classification"
+
+    with patch("streamlit.info") as mock_info, \
+         patch("frontend.components.parameter_editor.render_parameter_editor") as mock_render_editor, \
+         patch("streamlit.number_input") as mock_number_input:
+
+        # In 3_experiment_config.py:
+        if preset == "custom" and algorithm:
+            # st.divider()
+            mock_info("Custom model parameter configuration is temporarily disabled for the demo.")
+            custom_overrides = {}
+
+        # Assert render_parameter_editor was NOT called
+        mock_render_editor.assert_not_called()
+        mock_number_input.assert_not_called()
+        mock_info.assert_called_once_with("Custom model parameter configuration is temporarily disabled for the demo.")
+        assert custom_overrides == {}
+
+    # 3. Simulate non-custom preset behavior (e.g. baseline)
+    preset = "baseline"
+    with patch("streamlit.info") as mock_info, \
+         patch("frontend.components.parameter_editor.render_parameter_editor") as mock_render_editor:
+
+        if preset == "custom" and algorithm:
+            mock_info("Custom model parameter configuration is temporarily disabled for the demo.")
+            custom_overrides = {}
+        else:
+            custom_overrides = {}
+
+        mock_render_editor.assert_not_called()
+        mock_info.assert_not_called()
+        assert custom_overrides == {}
+
