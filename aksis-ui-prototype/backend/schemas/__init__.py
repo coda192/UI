@@ -1,4 +1,4 @@
-from .capability import CapabilityResponse, AlgorithmMetadata
+from .capability import CapabilityResponse, AlgorithmMetadata, ConfigApplicability, TuningCapabilities
 from .dataset import (
     DatasetMetadata,
     ColumnMetadata,
@@ -21,6 +21,8 @@ from .inference import InferenceRequest, InferenceResponse
 __all__ = [
     "CapabilityResponse",
     "AlgorithmMetadata",
+    "ConfigApplicability",
+    "TuningCapabilities",
     "DatasetMetadata",
     "ColumnMetadata",
     "ColumnProfile",

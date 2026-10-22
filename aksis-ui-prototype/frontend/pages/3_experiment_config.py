@@ -1,6 +1,11 @@
 import streamlit as st
 from api.client import AksisAPIError
-from utils.model_guidance import get_algorithm_display_name, get_algorithm_metadata
+from utils.model_guidance import (
+    get_algorithm_display_name,
+    get_algorithm_metadata,
+    is_config_applicable,
+    resolve_task_learning_types
+)
 from components.parameter_editor import render_parameter_editor
 
 st.title("⚙️ Deney Yapılandırma")
@@ -123,22 +128,16 @@ if not compatible_tasks:
     st.error(f"Seçilen veri seti ('{selected_ds_meta.get('name')}') için DataSpec üzerinde uyumlu bir görev tanımlanmamış.")
     st.stop()
 
-# AKSIS capabilities["tasks"] üzerinden uyumlu görev ve öğrenme türlerini çözümle
-caps_tasks_dict = capabilities.get("tasks", {})  # örn: {"supervised": ["classification", "regression"], "unsupervised": ["anomaly_detection"]}
-
-# 1. Her bir compatible_task için hangi learning_type olduğunu bul
-valid_task_to_lt = {}
-for lt, task_list in caps_tasks_dict.items():
-    for t in task_list:
-        if t in compatible_tasks:
-            valid_task_to_lt[t] = lt
+# AKSIS capabilities["config_applicability"] ve ["tasks"] üzerinden uyumlu görev ve öğrenme türlerini dinamik çözümle
+valid_task_to_lt = resolve_task_learning_types(capabilities, compatible_tasks)
 
 valid_tasks = list(valid_task_to_lt.keys())
 valid_learning_types = list(dict.fromkeys(valid_task_to_lt.values()))
 
 if not valid_tasks:
+    supported_aksis_tasks = capabilities.get("tasks", [])
     st.error(
-        f"Veri setinin uyumlu görevleri ({compatible_tasks}) ile AKSIS çerçevesinin desteklediği görevler ({list(caps_tasks_dict.values())}) arasında eşleşme bulunamadı. "
+        f"Veri setinin uyumlu görevleri ({compatible_tasks}) ile AKSIS çerçevesinin desteklediği görevler ({supported_aksis_tasks}) arasında eşleşme bulunamadı. "
         "Veri seti meta verisi ile mevcut AKSIS yetenekleri birbiriyle uyumsuz."
     )
     st.stop()
@@ -204,7 +203,13 @@ custom_overrides = {}
 
 if task:
     available_algos = capabilities.get("algorithms", {}).get(task, [])
-    api_presets = capabilities.get("model_presets", [])
+    presets_dict = capabilities.get("model_presets", {})
+    if isinstance(presets_dict, dict):
+        api_presets = presets_dict.get(learning_type, [])
+    elif isinstance(presets_dict, list):
+        api_presets = presets_dict
+    else:
+        api_presets = []
     
     if not available_algos:
         st.warning(f"'{task}' görevi için AKSIS yeteneklerinde kayıtlı algoritma bulunamadı.")
@@ -279,23 +284,47 @@ else:
     st.info("Lütfen önce geçerli bir görev seçin.")
 
 # ==============================================================================
-# 5. HİPERPARAMETRE OPTİMİZASYONU (Tuning - Yalnızca Mode='tune' İken Açılır)
+# 5. HİPERPARAMETRE OPTİMİZASYONU (Tuning - Yalnızca Mode='tune' ve İlgili Tuning Konfigürasyonu Uygulanabilir İken Açılır)
 # ==============================================================================
 tuning_sampler = None
 tuning_pruner = None
 tuning_trials = 10
 tuning_scoring = None
 
-if selected_mode == "tune":
+tuning_applicable = (
+    learning_type is not None 
+    and task is not None 
+    and is_config_applicable(capabilities, f"{learning_type}_tuning", learning_type, task)
+)
+
+if selected_mode == "tune" and tuning_applicable:
     st.divider()
     st.subheader("⚡ 3. Hiperparametre Optimizasyonu (Hyperparameter Tuning)")
     st.caption("Mode='tune' seçildiği için Optuna arama uzayı ve deneme parametreleri aktif edildi.")
     
-    tuning_opts = capabilities.get("tuning_options", {})
-    samplers = tuning_opts.get("sampler", [])
-    pruners = tuning_opts.get("pruner", [])
+    tuning_caps = capabilities.get("tuning") or {}
+    if hasattr(tuning_caps, "model_dump"):
+        tuning_caps = tuning_caps.model_dump()
+    elif hasattr(tuning_caps, "dict"):
+        tuning_caps = tuning_caps.dict()
+    elif not isinstance(tuning_caps, dict):
+        tuning_caps = dict(tuning_caps)
     
-    scoring_opts = capabilities.get("scoring_options", {}).get(task, [])
+    samplers = (
+        tuning_caps
+        .get("samplers", {})
+        .get(learning_type, [])
+    )
+    pruners = (
+        tuning_caps
+        .get("pruners", {})
+        .get(learning_type, [])
+    )
+    scoring_opts = (
+        tuning_caps
+        .get("objectives", {})
+        .get(task, [])
+    )
         
     t_col1, t_col2 = st.columns(2)
     with t_col1:
@@ -326,55 +355,67 @@ if selected_mode == "tune":
             )
         else:
             tuning_scoring = None
+elif selected_mode == "tune" and not tuning_applicable:
+    st.info(f"'{task}' görevi veya '{learning_type}' öğrenme türü için hiperparametre optimizasyonu konfigürasyonu desteklenmemektedir.")
 
 st.divider()
 
 # ==============================================================================
 # 6. ÖNİŞLEME VE DOĞRULAMA AYARLARI (İsteğe Bağlı)
 # ==============================================================================
-with st.expander("🛠️ Önişleme (Preprocessing)"):
-    prep_strats = capabilities.get("preprocessing_strategies", {})
-    
-    missing_options = ["none"] + prep_strats.get("missing_value", [])
-    encoding_options = ["none"] + prep_strats.get("encoding", [])
-    scaling_options = ["none"] + prep_strats.get("scaling", [])
-    
-    c_p1, c_p2, c_p3 = st.columns(3)
-    with c_p1:
-        missing_val = st.selectbox(
-            "Eksik Değer Yönetimi (Imputer)", 
-            missing_options,
-            format_func=lambda x: PREP_TR.get(x, x)
-        )
-    with c_p2:
-        encoding = st.selectbox(
-            "Kategorik Kodlama (Encoding)", 
-            encoding_options,
-            format_func=lambda x: PREP_TR.get(x, x)
-        )
-    with c_p3:
-        scaling = st.selectbox(
-            "Sayısal Ölçeklendirme (Scaling)", 
-            scaling_options,
-            format_func=lambda x: PREP_TR.get(x, x)
-        )
-    
-with st.expander("📐 Veri Bölümleme ve Doğrulama (Data Splitting & Validation)"):
-    val_options = capabilities.get("validation_options", [])
-    
-    c_v1, c_v2 = st.columns(2)
-    with c_v1:
-        if val_options:
-            val_strategy = st.selectbox(
-                "Doğrulama / Bölümleme Yöntemi", 
-                val_options,
-                format_func=lambda x: VAL_TR.get(x, x)
+missing_val = "none"
+encoding = "none"
+scaling = "none"
+
+if learning_type and task and is_config_applicable(capabilities, "preprocess", learning_type, task):
+    with st.expander("🛠️ Önişleme (Preprocessing)"):
+        prep_strats = capabilities.get("preprocessing", {})
+        
+        missing_options = ["none"] + prep_strats.get("missing_value", [])
+        encoding_options = ["none"] + prep_strats.get("encoding", [])
+        scaling_options = ["none"] + prep_strats.get("scaling", [])
+        
+        c_p1, c_p2, c_p3 = st.columns(3)
+        with c_p1:
+            missing_val = st.selectbox(
+                "Eksik Değer Yönetimi (Imputer)", 
+                missing_options,
+                format_func=lambda x: PREP_TR.get(x, x)
             )
-        else:
-            st.warning("Doğrulama yöntemi bulunamadı.")
-            val_strategy = None
-    with c_v2:
-        test_size = st.slider("Test Kümesi Oranı (test_size)", 0.1, 0.5, 0.2, 0.05)
+        with c_p2:
+            encoding = st.selectbox(
+                "Kategorik Kodlama (Encoding)", 
+                encoding_options,
+                format_func=lambda x: PREP_TR.get(x, x)
+            )
+        with c_p3:
+            scaling = st.selectbox(
+                "Sayısal Ölçeklendirme (Scaling)", 
+                scaling_options,
+                format_func=lambda x: PREP_TR.get(x, x)
+            )
+
+val_strategy = None
+test_size = 0.2
+
+if learning_type and task and is_config_applicable(capabilities, "data_split", learning_type, task):
+    with st.expander("📐 Veri Bölümleme ve Doğrulama (Data Splitting & Validation)"):
+        split_meta = capabilities.get("data_split", {})
+        val_options = split_meta.get("methods", []) if isinstance(split_meta, dict) else []
+        
+        c_v1, c_v2 = st.columns(2)
+        with c_v1:
+            if val_options:
+                val_strategy = st.selectbox(
+                    "Doğrulama / Bölümleme Yöntemi", 
+                    val_options,
+                    format_func=lambda x: VAL_TR.get(x, x)
+                )
+            else:
+                st.warning("Doğrulama yöntemi bulunamadı.")
+                val_strategy = None
+        with c_v2:
+            test_size = st.slider("Test Kümesi Oranı (test_size)", 0.1, 0.5, 0.2, 0.05)
 
 # Preprocess konfigürasyonu
 preprocess_payload = None
@@ -403,7 +444,7 @@ if val_strategy:
 
 # Tuning konfigürasyonu
 tuning_payload = None
-if selected_mode == "tune":
+if selected_mode == "tune" and tuning_applicable:
     tuning_payload = {
         "enabled": True,
         "n_trials": tuning_trials,

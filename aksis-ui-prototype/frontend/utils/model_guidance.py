@@ -41,3 +41,75 @@ def get_algorithm_display_name(algorithm_key: str, capabilities: Optional[Dict[s
     meta = get_algorithm_metadata(algorithm_key, capabilities)
     return meta.get("display_name") or algorithm_key
 
+
+def is_config_applicable(
+    capabilities: Optional[Dict[str, Any]],
+    config_name: str,
+    algorithm_type: str,
+    task: str,
+) -> bool:
+    """
+    Belirli bir konfigürasyon bloğunun (ör. 'data_split', 'supervised_tuning', 'preprocess'),
+    mevcut algorithm_type ve task için AKSIS config_applicability meta verisine göre
+    uygulanabilir olup olmadığını doğrular.
+
+    Hem algorithm_types hem de supported_tasks listesinde eşleşme olmalıdır.
+    """
+    if not capabilities or not isinstance(capabilities, dict):
+        return False
+
+    applicability = capabilities.get("config_applicability") or {}
+    config_meta = applicability.get(config_name)
+
+    if not config_meta:
+        return False
+
+    if hasattr(config_meta, "model_dump"):
+        config_meta = config_meta.model_dump()
+    elif hasattr(config_meta, "dict"):
+        config_meta = config_meta.dict()
+    elif not isinstance(config_meta, dict):
+        config_meta = dict(config_meta)
+
+    allowed_algo_types = config_meta.get("algorithm_types") or []
+    supported_tasks = config_meta.get("supported_tasks") or []
+
+    if algorithm_type not in allowed_algo_types:
+        return False
+
+    if task not in supported_tasks:
+        return False
+
+    return True
+
+
+def resolve_task_learning_types(
+    capabilities: Optional[Dict[str, Any]],
+    candidate_tasks: Optional[list]
+) -> Dict[str, str]:
+    """
+    Veri setinin uyumlu görevleri (candidate_tasks) için hangi learning_type'ların
+    uygun olduğunu AKSIS capabilities['config_applicability'] üzerinden dinamik olarak çözümler.
+    
+    Her bir learning_type için '{learning_type}_model' uygunluk girdisini inceler:
+    - task in config_applicability['{lt}_model']['supported_tasks']
+    - lt in config_applicability['{lt}_model']['algorithm_types']
+
+    Dönen sözlük: {task: learning_type}
+    """
+    if not capabilities or not isinstance(capabilities, dict) or not candidate_tasks:
+        return {}
+
+    learning_types = capabilities.get("learning_types") or []
+    task_to_lt: Dict[str, str] = {}
+
+    for t in candidate_tasks:
+        for lt in learning_types:
+            config_key = f"{lt}_model"
+            if is_config_applicable(capabilities, config_key, lt, t):
+                task_to_lt[t] = lt
+                break
+
+    return task_to_lt
+
+

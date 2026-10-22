@@ -52,17 +52,23 @@ def test_capabilities_real_aksis_provider(monkeypatch):
     monkeypatch.setenv("AKSIS_PROVIDER", "aksis")
     mock_caps = {
         "learning_types": ["supervised", "unsupervised"],
-        "tasks": ["classification", "regression", "anomaly_detection"],  # Real AKSIS flat list
+        "tasks": ["classification", "regression", "anomaly_detection"],
         "modes": ["train", "tune", "predict"],
+        "config_applicability": {
+            "supervised_model": {
+                "algorithm_types": ["supervised"],
+                "supported_tasks": ["classification", "regression"]
+            }
+        },
         "algorithms": {"classification": ["logreg"]},
-        "model_presets": {  # Real AKSIS dict presets
+        "model_presets": {
             "supervised": ["baseline", "fast"],
             "unsupervised": ["fast", "custom"]
         },
-        "preprocessing": {"encoding": ["onehot"]},  # No missing_value key
-        "tuning": {  # Real AKSIS nested tuning
-            "supervised": {"sampler": ["tpe", "random"], "pruner": ["none", "median"]},
-            "unsupervised": {"sampler": ["random"]}
+        "preprocessing": {"encoding": ["onehot"]},
+        "tuning": {
+            "samplers": {"supervised": ["tpe", "random"], "unsupervised": ["random"]},
+            "pruners": {"supervised": ["none", "median"], "unsupervised": ["none"]}
         },
         "algorithm_metadata": {
             "logreg": {
@@ -83,13 +89,12 @@ def test_capabilities_real_aksis_provider(monkeypatch):
     assert data["algorithm_metadata"]["logreg"]["display_name"] == "Logistic Regression"
     assert data["algorithm_metadata"]["logreg"]["strengths"] == ["Fast"]
 
-    # Verify normalized fields
-    assert data["tasks"]["supervised"] == ["classification", "regression"]
-    assert data["tasks"]["unsupervised"] == ["anomaly_detection"]
-    assert data["model_presets"] == ["baseline", "fast", "custom"]
-    assert data["preprocessing_strategies"]["missing_value"] == []
-    assert data["tuning_options"]["sampler"] == ["tpe", "random"]
-    assert data["tuning_options"]["pruner"] == ["none", "median"]
+    # Verify new schema fields
+    assert data["tasks"] == ["classification", "regression", "anomaly_detection"]
+    assert data["model_presets"]["supervised"] == ["baseline", "fast"]
+    assert data["preprocessing"]["encoding"] == ["onehot"]
+    assert data["tuning"]["samplers"]["supervised"] == ["tpe", "random"]
+    assert data["tuning"]["pruners"]["supervised"] == ["none", "median"]
 
 
 def test_datasets_real_aksis_provider(monkeypatch):
@@ -166,16 +171,13 @@ def test_parameter_schema_optional_contract():
     # Verify CapabilityResponse can be initialized without parameter_schema
     cap = CapabilityResponse(
         learning_types=["supervised"],
-        tasks={"supervised": ["classification"]},
+        tasks=["classification"],
         modes=["train"],
         algorithms={"classification": ["xgb_c"]},
-        model_presets=["baseline", "custom"],
-        preprocessing_strategies={},
-        validation_options=["holdout"],
-        tuning_options={},
-        scoring_options={},
-        evaluation_capabilities=[],
-        visualization_capabilities=[]
+        model_presets={"supervised": ["baseline", "custom"]},
+        preprocessing={},
+        data_split={},
+        tuning={"samplers": {}, "pruners": {}}
     )
     assert cap.parameter_schema is None
 

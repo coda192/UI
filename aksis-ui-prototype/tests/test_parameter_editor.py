@@ -182,3 +182,132 @@ def test_custom_preset_ui_behavior():
         mock_info.assert_not_called()
         assert custom_overrides == {}
 
+
+def test_config_applicability_helper():
+    from frontend.utils.model_guidance import is_config_applicable
+
+    caps = {
+        "config_applicability": {
+            "data_split": {
+                "algorithm_types": ["supervised"],
+                "supported_tasks": ["classification", "regression"]
+            },
+            "supervised_tuning": {
+                "algorithm_types": ["supervised"],
+                "supported_tasks": ["classification", "regression"]
+            },
+            "unsupervised_tuning": {
+                "algorithm_types": ["unsupervised"],
+                "supported_tasks": ["anomaly_detection"]
+            },
+            "preprocess": {
+                "algorithm_types": ["supervised", "unsupervised"],
+                "supported_tasks": ["classification", "regression", "anomaly_detection"]
+            }
+        }
+    }
+
+    # Data split: applicable for supervised classification and regression, but NOT for unsupervised anomaly_detection
+    assert is_config_applicable(caps, "data_split", "supervised", "classification") is True
+    assert is_config_applicable(caps, "data_split", "supervised", "regression") is True
+    assert is_config_applicable(caps, "data_split", "unsupervised", "anomaly_detection") is False
+    assert is_config_applicable(caps, "data_split", "supervised", "anomaly_detection") is False
+
+    # Supervised tuning
+    assert is_config_applicable(caps, "supervised_tuning", "supervised", "classification") is True
+    assert is_config_applicable(caps, "supervised_tuning", "unsupervised", "anomaly_detection") is False
+
+    # Unsupervised tuning
+    assert is_config_applicable(caps, "unsupervised_tuning", "unsupervised", "anomaly_detection") is True
+    assert is_config_applicable(caps, "unsupervised_tuning", "supervised", "classification") is False
+
+    # Non-existent config
+    assert is_config_applicable(caps, "non_existent", "supervised", "classification") is False
+    assert is_config_applicable({}, "data_split", "supervised", "classification") is False
+    assert is_config_applicable(None, "data_split", "supervised", "classification") is False
+
+
+def test_task_learning_type_resolution_from_capabilities():
+    from frontend.utils.model_guidance import resolve_task_learning_types
+
+    caps = {
+        "learning_types": ["supervised", "unsupervised"],
+        "tasks": ["classification", "regression", "anomaly_detection"],
+        "config_applicability": {
+            "supervised_model": {
+                "algorithm_types": ["supervised"],
+                "supported_tasks": ["classification", "regression"]
+            },
+            "unsupervised_model": {
+                "algorithm_types": ["unsupervised"],
+                "supported_tasks": ["anomaly_detection"]
+            }
+        }
+    }
+
+    # Test resolution of supervised tasks
+    resolved_sup = resolve_task_learning_types(caps, ["classification", "regression"])
+    assert resolved_sup == {
+        "classification": "supervised",
+        "regression": "supervised"
+    }
+
+    # Test resolution of unsupervised task
+    resolved_unsup = resolve_task_learning_types(caps, ["anomaly_detection"])
+    assert resolved_unsup == {
+        "anomaly_detection": "unsupervised"
+    }
+
+    # Test mixed candidate tasks
+    resolved_mixed = resolve_task_learning_types(caps, ["classification", "anomaly_detection"])
+    assert resolved_mixed == {
+        "classification": "supervised",
+        "anomaly_detection": "unsupervised"
+    }
+
+    # Unsupported candidate task
+    resolved_unknown = resolve_task_learning_types(caps, ["forecasting"])
+    assert resolved_unknown == {}
+
+
+def test_contextual_model_presets_and_tuning_capabilities():
+    from backend.demo.fixtures import CAPABILITIES
+
+    caps = CAPABILITIES.model_dump()
+
+    # 1. Verify absence of old flattened keys in new CapabilityResponse
+    assert "tuning_options" not in caps
+    assert "scoring_options" not in caps
+    assert "preprocessing_strategies" not in caps
+    assert "validation_options" not in caps
+
+    # 2. Contextual model presets
+    assert isinstance(caps["model_presets"], dict)
+    assert "supervised" in caps["model_presets"]
+    assert "unsupervised" in caps["model_presets"]
+    assert "baseline" in caps["model_presets"]["supervised"]
+    assert "custom" in caps["model_presets"]["supervised"]
+    assert "custom" in caps["model_presets"]["unsupervised"]
+
+    # 3. Contextual tuning structure
+    tuning = caps["tuning"]
+    assert "samplers" in tuning
+    assert "pruners" in tuning
+    assert "objectives" in tuning
+
+    assert tuning["samplers"]["supervised"] == ["tpe", "random"]
+    assert tuning["samplers"]["unsupervised"] == ["random"]
+    assert tuning["pruners"]["supervised"] == ["none", "median", "sha"]
+    assert tuning["pruners"]["unsupervised"] == ["none"]
+
+    assert tuning["objectives"]["classification"] == ["f1_macro", "accuracy", "balanced_accuracy"]
+    assert tuning["objectives"]["regression"] == ["neg_mean_squared_error", "r2", "rmse", "mae"]
+    assert tuning["objectives"]["anomaly_detection"] == ["f1_score", "accuracy", "anomaly_count", "anomaly_ratio"]
+
+    # 4. Preprocessing structure
+    assert "preprocessing" in caps
+    assert "missing_value" in caps["preprocessing"]
+    assert "encoding" in caps["preprocessing"]
+    assert "scaling" in caps["preprocessing"]
+
+

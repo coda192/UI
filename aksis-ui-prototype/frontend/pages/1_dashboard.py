@@ -171,10 +171,53 @@ st.subheader("🔧 Önişleme, Preset ve Optimizasyon Yetenekleri")
 
 p_col1, p_col2, p_col3 = st.columns(3)
 
-prep_strats = capabilities.get("preprocessing_strategies", {})
-presets = capabilities.get("model_presets", [])
-tuning_opts = capabilities.get("tuning_options", {})
-val_opts = capabilities.get("validation_options", [])
+prep_strats = capabilities.get("preprocessing") or capabilities.get("preprocessing_strategies", {})
+raw_presets = capabilities.get("model_presets", {})
+if isinstance(raw_presets, dict):
+    # Flatten unique presets across learning types for the high-level dashboard display
+    presets = list(dict.fromkeys([p for p_list in raw_presets.values() for p in p_list]))
+elif isinstance(raw_presets, list):
+    presets = raw_presets
+else:
+    presets = []
+
+raw_tuning = capabilities.get("tuning") or capabilities.get("tuning_options", {})
+if hasattr(raw_tuning, "model_dump"):
+    tuning_dict = raw_tuning.model_dump()
+elif hasattr(raw_tuning, "dict"):
+    tuning_dict = raw_tuning.dict()
+elif isinstance(raw_tuning, dict):
+    tuning_dict = raw_tuning
+else:
+    tuning_dict = {}
+
+# Samplers and pruners can be nested by learning type or flat
+samplers = []
+raw_samplers = tuning_dict.get("samplers") or tuning_dict.get("sampler") or {}
+if isinstance(raw_samplers, dict):
+    samplers = list(dict.fromkeys([s for s_list in raw_samplers.values() for s in s_list]))
+elif isinstance(raw_samplers, list):
+    samplers = raw_samplers
+
+pruners = []
+raw_pruners = tuning_dict.get("pruners") or tuning_dict.get("pruner") or {}
+if isinstance(raw_pruners, dict):
+    pruners = list(dict.fromkeys([p for p_list in raw_pruners.values() for p in p_list]))
+elif isinstance(raw_pruners, list):
+    pruners = raw_pruners
+
+space_presets = []
+raw_sp = tuning_dict.get("space_presets") or tuning_dict.get("space_preset") or {}
+if isinstance(raw_sp, dict):
+    space_presets = list(dict.fromkeys([sp for sp_list in raw_sp.values() for sp in sp_list]))
+elif isinstance(raw_sp, list):
+    space_presets = raw_sp
+
+data_split_caps = capabilities.get("data_split", {})
+if isinstance(data_split_caps, dict):
+    val_opts = data_split_caps.get("methods", [])
+else:
+    val_opts = capabilities.get("validation_options", [])
 
 with p_col1:
     with st.container(border=True):
@@ -202,14 +245,14 @@ with p_col3:
     with st.container(border=True):
         st.markdown("#### ⚡ Optuna Tuning Yetenekleri")
         st.caption("Samplers:")
-        for s in tuning_opts.get("sampler", []):
+        for s in samplers:
             st.write(f"- `{s}`")
         st.caption("Pruners:")
-        for p in tuning_opts.get("pruner", []):
+        for p in pruners:
             st.write(f"- `{p}`")
-        if "space_preset" in tuning_opts:
+        if space_presets:
             st.caption("Space Presets:")
-            for sp in tuning_opts.get("space_preset", []):
+            for sp in space_presets:
                 st.write(f"- `{sp}`")
 
 st.divider()

@@ -225,20 +225,28 @@ def test_real_aksis_service_get_capabilities_mapping(monkeypatch):
 
     mock_caps = {
         "learning_types": ["supervised", "unsupervised"],
-        "tasks": {"supervised": ["classification", "regression"]},
+        "tasks": ["classification", "regression"],
         "modes": ["train", "tune"],
+        "config_applicability": {
+            "supervised_model": {
+                "algorithm_types": ["supervised"],
+                "supported_tasks": ["classification", "regression"]
+            }
+        },
         "algorithms": {
             "classification": ["logreg", "random_forest_c"],
             "regression": ["ridge"]
         },
-        "model_presets": ["baseline", "fast"],
+        "model_presets": {
+            "supervised": ["baseline", "fast"]
+        },
         "preprocessing": {
             "missing_value": ["mean", "median"],
             "encoding": ["onehot"]
         },
         "tuning": {
-            "sampler": ["tpe"],
-            "pruner": ["none"]
+            "samplers": {"supervised": ["tpe"]},
+            "pruners": {"supervised": ["none"]}
         },
         "algorithm_metadata": {
             "logreg": {
@@ -262,9 +270,11 @@ def test_real_aksis_service_get_capabilities_mapping(monkeypatch):
     res = service.get_capabilities()
 
     assert res.learning_types == ["supervised", "unsupervised"]
+    assert res.tasks == ["classification", "regression"]
     assert res.algorithms["classification"] == ["logreg", "random_forest_c"]
-    assert res.preprocessing_strategies["missing_value"] == ["mean", "median"]
-    assert res.tuning_options["sampler"] == ["tpe"]
+    assert res.model_presets["supervised"] == ["baseline", "fast"]
+    assert res.preprocessing["missing_value"] == ["mean", "median"]
+    assert res.tuning.samplers["supervised"] == ["tpe"]
     assert res.algorithm_metadata is not None
     assert "logreg" in res.algorithm_metadata
     assert res.algorithm_metadata["logreg"].display_name == "Lojistik Regresyon"
@@ -286,12 +296,11 @@ def test_real_aksis_service_get_capabilities_missing_lib(monkeypatch):
 
 def test_real_aksis_service_get_capabilities_real_shape_normalization(monkeypatch):
     """
-    Test normalization of real AKSIS capability structures:
-    - Flat task list -> {"supervised": [...], "unsupervised": [...]}
-    - Dict model_presets -> flat list
-    - Preprocessing without missing_value -> missing_value: []
-    - Nested tuning -> merged flat Dict[str, List[str]]
-    - Missing scoring -> empty list per task without fabricated values
+    Test direct loading of AKSIS capability structures into CapabilityResponse:
+    - Tasks is a flat list
+    - Dict model_presets by learning_type
+    - Preprocessing dict
+    - Nested tuning (samplers, pruners, etc.)
     - Algorithm metadata preserved
     """
     import backend.services.aksis_service as aksis_mod
@@ -301,27 +310,37 @@ def test_real_aksis_service_get_capabilities_real_shape_normalization(monkeypatc
         "learning_types": ["supervised", "unsupervised"],
         "tasks": ["classification", "regression", "anomaly_detection"],  # Flat list from AKSIS
         "modes": ["train", "tune", "predict"],
+        "config_applicability": {
+            "supervised_model": {
+                "algorithm_types": ["supervised"],
+                "supported_tasks": ["classification", "regression"]
+            },
+            "unsupervised_model": {
+                "algorithm_types": ["unsupervised"],
+                "supported_tasks": ["anomaly_detection"]
+            }
+        },
         "algorithms": {
             "classification": ["logreg", "random_forest_c"],
             "regression": ["ridge"],
             "anomaly_detection": ["isolation_forest"]
         },
-        "model_presets": {  # Nested/dict presets from AKSIS
+        "model_presets": {
             "supervised": ["baseline", "fast", "strong"],
             "unsupervised": ["fast", "custom"]
         },
-        "preprocessing": {  # No missing_value key in raw AKSIS
+        "preprocessing": {
             "encoding": ["onehot", "ordinal"],
             "scaling": ["standard", "minmax"]
         },
-        "tuning": {  # Nested tuning options by learning type
-            "supervised": {
-                "sampler": ["tpe", "random"],
-                "pruner": ["none", "median", "sha"]
+        "tuning": {
+            "samplers": {
+                "supervised": ["tpe", "random"],
+                "unsupervised": ["random"]
             },
-            "unsupervised": {
-                "sampler": ["random"],
-                "pruner": ["none"]
+            "pruners": {
+                "supervised": ["none", "median", "sha"],
+                "unsupervised": ["none"]
             }
         },
         "algorithm_metadata": {
@@ -340,29 +359,22 @@ def test_real_aksis_service_get_capabilities_real_shape_normalization(monkeypatc
     service = RealAksisService()
     res = service.get_capabilities()
 
-    # 1. Tasks partitioned
-    assert isinstance(res.tasks, dict)
-    assert res.tasks["supervised"] == ["classification", "regression"]
-    assert res.tasks["unsupervised"] == ["anomaly_detection"]
+    # 1. Tasks is flat list
+    assert isinstance(res.tasks, list)
+    assert res.tasks == ["classification", "regression", "anomaly_detection"]
 
-    # 2. Model presets flattened and ordered
-    assert isinstance(res.model_presets, list)
-    assert res.model_presets == ["baseline", "fast", "strong", "custom"]
+    # 2. Model presets dict
+    assert isinstance(res.model_presets, dict)
+    assert res.model_presets["supervised"] == ["baseline", "fast", "strong"]
+    assert res.model_presets["unsupervised"] == ["fast", "custom"]
 
-    # 3. Preprocessing has missing_value as empty list
-    assert res.preprocessing_strategies["missing_value"] == []
-    assert res.preprocessing_strategies["encoding"] == ["onehot", "ordinal"]
+    # 3. Preprocessing preserves raw keys
+    assert res.preprocessing["encoding"] == ["onehot", "ordinal"]
+    assert res.preprocessing["scaling"] == ["standard", "minmax"]
 
-    # 4. Tuning merged and deduplicated
-    assert isinstance(res.tuning_options, dict)
-    assert res.tuning_options["sampler"] == ["tpe", "random"]
-    assert res.tuning_options["pruner"] == ["none", "median", "sha"]
-
-    # 5. Scoring options contains empty lists per active task (no fabricated metrics)
-    assert "classification" in res.scoring_options
-    assert res.scoring_options["classification"] == []
-    assert "anomaly_detection" in res.scoring_options
-    assert res.scoring_options["anomaly_detection"] == []
+    # 4. Tuning samplers and pruners
+    assert res.tuning.samplers["supervised"] == ["tpe", "random"]
+    assert res.tuning.pruners["supervised"] == ["none", "median", "sha"]
 
     # 6. Algorithm metadata preserved
     assert res.algorithm_metadata is not None

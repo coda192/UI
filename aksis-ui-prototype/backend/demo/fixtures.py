@@ -1,6 +1,8 @@
 from backend.schemas import (
     CapabilityResponse,
     AlgorithmMetadata,
+    ConfigApplicability,
+    TuningCapabilities,
     DatasetMetadata,
     ColumnMetadata,
     TopCategory,
@@ -401,36 +403,100 @@ PARAMETER_SCHEMA = {
 
 CAPABILITIES = CapabilityResponse(
     learning_types=["supervised", "unsupervised"],
-    tasks={
-        "supervised": ["classification", "regression"],
-        "unsupervised": ["anomaly_detection"]
-    },
+    tasks=["classification", "regression", "anomaly_detection"],
     modes=["train", "tune", "predict"],
+    config_applicability={
+        "data_analyze": ConfigApplicability(
+            algorithm_types=["supervised", "unsupervised"],
+            supported_tasks=["classification", "regression", "anomaly_detection"]
+        ),
+        "preprocess": ConfigApplicability(
+            algorithm_types=["supervised", "unsupervised"],
+            supported_tasks=["classification", "regression", "anomaly_detection"]
+        ),
+        "data_split": ConfigApplicability(
+            algorithm_types=["supervised"],
+            supported_tasks=["classification", "regression"]
+        ),
+        "supervised_model": ConfigApplicability(
+            algorithm_types=["supervised"],
+            supported_tasks=["classification", "regression"]
+        ),
+        "unsupervised_model": ConfigApplicability(
+            algorithm_types=["unsupervised"],
+            supported_tasks=["anomaly_detection"]
+        ),
+        "supervised_tuning": ConfigApplicability(
+            algorithm_types=["supervised"],
+            supported_tasks=["classification", "regression"]
+        ),
+        "unsupervised_tuning": ConfigApplicability(
+            algorithm_types=["unsupervised"],
+            supported_tasks=["anomaly_detection"]
+        ),
+        "supervised_evaluation": ConfigApplicability(
+            algorithm_types=["supervised"],
+            supported_tasks=["classification", "regression"]
+        ),
+        "unsupervised_evaluation": ConfigApplicability(
+            algorithm_types=["unsupervised"],
+            supported_tasks=["anomaly_detection"]
+        ),
+        "supervised_visualization": ConfigApplicability(
+            algorithm_types=["supervised"],
+            supported_tasks=["classification", "regression"]
+        ),
+        "unsupervised_visualization": ConfigApplicability(
+            algorithm_types=["unsupervised"],
+            supported_tasks=["anomaly_detection"]
+        )
+    },
     algorithms={
         "classification": ["logreg", "random_forest_c", "hgb_c", "svc", "knn", "catboost", "xgb_c"],
         "regression": ["ridge", "svr", "random_forest_r", "xgb", "hgb_r"],
         "anomaly_detection": ["isolation_forest", "lof", "one_class_svm", "elliptic_envelope"]
     },
-    model_presets=["baseline", "fast", "strong", "custom"],
-    preprocessing_strategies={
+    model_presets={
+        "supervised": ["baseline", "fast", "strong", "custom"],
+        "unsupervised": ["fast", "custom"]
+    },
+    tuning=TuningCapabilities(
+        samplers={
+            "supervised": ["tpe", "random"],
+            "unsupervised": ["random"]
+        },
+        pruners={
+            "supervised": ["none", "median", "sha"],
+            "unsupervised": ["none"]
+        },
+        aggregation={
+            "supervised": ["mean", "median"],
+            "unsupervised": ["mean"]
+        },
+        space_presets={
+            "anomaly_detection": ["baseline", "deep"]
+        },
+        objectives={
+            "classification": ["f1_macro", "accuracy", "balanced_accuracy"],
+            "regression": ["neg_mean_squared_error", "r2", "rmse", "mae"],
+            "anomaly_detection": ["f1_score", "accuracy", "anomaly_count", "anomaly_ratio"]
+        }
+    ),
+    preprocessing={
         "missing_value": ["mean", "median", "most_frequent", "constant", "drop"],
         "encoding": ["onehot", "frequency", "hashing"],
         "scaling": ["standard", "minmax", "robust"]
     },
-    validation_options=["holdout", "kfold", "stratified_kfold"],
-    tuning_options={
-        "sampler": ["tpe", "random"],
-        "pruner": ["none", "median", "sha"],
-        "space_preset": ["baseline", "deep"],
-        "aggregation": ["mean", "median"]
+    data_split={
+        "methods": ["holdout", "kfold", "stratified_kfold"]
     },
-    scoring_options={
-        "classification": ["f1_macro", "accuracy", "balanced_accuracy"],
-        "regression": ["neg_mean_squared_error", "r2", "rmse", "mae"],
-        "anomaly_detection": ["f1_score", "accuracy", "anomaly_count", "anomaly_ratio"]
+    data_analyze={},
+    evaluation={
+        "capabilities": ["confusion_matrix", "feature_importance", "residuals", "anomaly_distribution"]
     },
-    evaluation_capabilities=["confusion_matrix", "feature_importance", "residuals", "anomaly_distribution"],
-    visualization_capabilities=["roc_curve", "pr_curve", "residual_plot", "feature_importance_plot", "anomaly_score_histogram"],
+    visualization={
+        "capabilities": ["roc_curve", "pr_curve", "residual_plot", "feature_importance_plot", "anomaly_score_histogram"]
+    },
     algorithm_metadata=ALGORITHM_METADATA,
     parameter_schema=PARAMETER_SCHEMA
 )
