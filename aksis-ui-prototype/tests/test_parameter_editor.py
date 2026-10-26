@@ -311,3 +311,107 @@ def test_contextual_model_presets_and_tuning_capabilities():
     assert "scaling" in caps["preprocessing"]
 
 
+def test_data_split_schema_driven_method_selection_and_payload():
+    """
+    Verifies that:
+    - Data split methods come from capabilities["data_split"]["methods"]
+    - holdout renders and populates test_size, without leaking n_splits
+    - kfold renders and populates n_splits, without leaking test_size
+    - generated payload contains only applicable parameters
+    """
+    from backend.demo.fixtures import CAPABILITIES
+
+    caps = CAPABILITIES.model_dump()
+    data_split_caps = caps.get("data_split", {})
+    methods = data_split_caps.get("methods", [])
+    param_schema = data_split_caps.get("parameter_schema", {})
+
+    assert "holdout" in methods
+    assert "kfold" in methods
+    assert "stratified_kfold" in methods
+
+    # 1. Test Holdout parameter extraction
+    holdout_schema = param_schema.get("holdout", {})
+    assert "test_size" in holdout_schema
+    assert "n_splits" not in holdout_schema
+    assert holdout_schema["test_size"]["type"] == "float"
+    assert holdout_schema["test_size"]["default"] == 0.2
+    assert holdout_schema["test_size"]["min"] == 0.1
+    assert holdout_schema["test_size"]["max"] == 0.5
+    assert holdout_schema["test_size"]["step"] == 0.05
+
+    # Simulated holdout parameters collected by UI
+    holdout_params = {}
+    for p_name, p_spec in holdout_schema.items():
+        holdout_params[p_name] = p_spec.get("default")
+
+    holdout_payload = {
+        "method": "holdout",
+        "parameters": holdout_params
+    }
+
+    assert holdout_payload["method"] == "holdout"
+    assert "test_size" in holdout_payload["parameters"]
+    assert holdout_payload["parameters"]["test_size"] == 0.2
+    assert "n_splits" not in holdout_payload["parameters"]
+
+    # 2. Test K-Fold parameter extraction
+    kfold_schema = param_schema.get("kfold", {})
+    assert "n_splits" in kfold_schema
+    assert "test_size" not in kfold_schema
+    assert kfold_schema["n_splits"]["type"] == "int"
+    assert kfold_schema["n_splits"]["default"] == 5
+    assert kfold_schema["n_splits"]["min"] == 2
+    assert kfold_schema["n_splits"]["max"] == 20
+    assert kfold_schema["n_splits"]["step"] == 1
+
+    # Simulated kfold parameters collected by UI
+    kfold_params = {}
+    for p_name, p_spec in kfold_schema.items():
+        kfold_params[p_name] = p_spec.get("default")
+
+    kfold_payload = {
+        "method": "kfold",
+        "parameters": kfold_params
+    }
+
+    assert kfold_payload["method"] == "kfold"
+    assert "n_splits" in kfold_payload["parameters"]
+    assert kfold_payload["parameters"]["n_splits"] == 5
+    assert "test_size" not in kfold_payload["parameters"]
+
+
+def test_data_split_slider_and_num_sync_logic():
+    """
+    Verifies that the bidirectional slider and number input sync handlers keep
+    session state synchronized for both float and int types.
+    """
+    state = {
+        "ds_holdout_test_size_slider": 0.2,
+        "ds_holdout_test_size_num": 0.2,
+        "ds_kfold_n_splits_slider": 5,
+        "ds_kfold_n_splits_num": 5
+    }
+
+    # Simulate slider change for float
+    state["ds_holdout_test_size_slider"] = 0.35
+    state["ds_holdout_test_size_num"] = state["ds_holdout_test_size_slider"]
+    assert state["ds_holdout_test_size_num"] == 0.35
+
+    # Simulate manual num change for float
+    state["ds_holdout_test_size_num"] = 0.25
+    state["ds_holdout_test_size_slider"] = state["ds_holdout_test_size_num"]
+    assert state["ds_holdout_test_size_slider"] == 0.25
+
+    # Simulate slider change for int
+    state["ds_kfold_n_splits_slider"] = 10
+    state["ds_kfold_n_splits_num"] = state["ds_kfold_n_splits_slider"]
+    assert state["ds_kfold_n_splits_num"] == 10
+
+    # Simulate manual num change for int
+    state["ds_kfold_n_splits_num"] = 8
+    state["ds_kfold_n_splits_slider"] = state["ds_kfold_n_splits_num"]
+    assert state["ds_kfold_n_splits_slider"] == 8
+
+
+

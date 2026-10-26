@@ -488,7 +488,54 @@ CAPABILITIES = CapabilityResponse(
         "scaling": ["standard", "minmax", "robust"]
     },
     data_split={
-        "methods": ["holdout", "kfold", "stratified_kfold"]
+        "methods": ["holdout", "kfold", "stratified_kfold"],
+        "parameter_schema": {
+            "holdout": {
+                "test_size": {
+                    "type": "float",
+                    "default": 0.2,
+                    "min": 0.1,
+                    "max": 0.5,
+                    "step": 0.05,
+                    "description": "Test kümesi oranı (test_size)"
+                },
+                "shuffle": {
+                    "type": "bool",
+                    "default": True,
+                    "description": "Veriyi bölmeden önce karıştır (shuffle)"
+                }
+            },
+            "kfold": {
+                "n_splits": {
+                    "type": "int",
+                    "default": 5,
+                    "min": 2,
+                    "max": 20,
+                    "step": 1,
+                    "description": "Kat sayısı (n_splits)"
+                },
+                "shuffle": {
+                    "type": "bool",
+                    "default": True,
+                    "description": "Veriyi bölmeden önce karıştır (shuffle)"
+                }
+            },
+            "stratified_kfold": {
+                "n_splits": {
+                    "type": "int",
+                    "default": 5,
+                    "min": 2,
+                    "max": 20,
+                    "step": 1,
+                    "description": "Tabakalı kat sayısı (n_splits)"
+                },
+                "shuffle": {
+                    "type": "bool",
+                    "default": True,
+                    "description": "Veriyi bölmeden önce karıştır (shuffle)"
+                }
+            }
+        }
     },
     data_analyze={},
     evaluation={
