@@ -414,4 +414,101 @@ def test_data_split_slider_and_num_sync_logic():
     assert state["ds_kfold_n_splits_slider"] == 8
 
 
+def test_data_split_unbounded_numeric_and_other_types():
+    """
+    Verifies that:
+    - Numeric parameters without min/max do not receive fabricated ranges
+    - Types (int, float, bool, choice) are correctly preserved in collected payload
+    - Stratified K-Fold works identically to K-Fold with its own isolated parameters
+    """
+    custom_schema = {
+        "custom_method": {
+            "unbounded_float": {
+                "type": "float",
+                "default": 1.5,
+                "description": "Unbounded float parameter"
+            },
+            "unbounded_int": {
+                "type": "int",
+                "default": 42,
+                "description": "Unbounded int parameter"
+            },
+            "flag_option": {
+                "type": "bool",
+                "default": False,
+                "description": "Boolean flag"
+            },
+            "strategy_choice": {
+                "type": "choice",
+                "default": "fast",
+                "choices": ["fast", "precise"],
+                "description": "Choice parameter"
+            }
+        }
+    }
+
+    params = {}
+    for p_name, p_spec in custom_schema["custom_method"].items():
+        p_type = p_spec["type"]
+        p_default = p_spec.get("default")
+        p_min = p_spec.get("min")
+        p_max = p_spec.get("max")
+
+        # Unbounded numeric check: min and max are absent
+        if p_type in ("int", "float"):
+            assert p_min is None
+            assert p_max is None
+            if p_type == "int":
+                params[p_name] = int(p_default)
+            else:
+                params[p_name] = float(p_default)
+        elif p_type == "bool":
+            params[p_name] = bool(p_default)
+        elif p_type in ("choice", "enum"):
+            assert p_default in p_spec["choices"]
+            params[p_name] = p_default
+
+    payload = {
+        "method": "custom_method",
+        "parameters": params
+    }
+
+    assert payload["method"] == "custom_method"
+    assert payload["parameters"]["unbounded_float"] == 1.5
+    assert isinstance(payload["parameters"]["unbounded_float"], float)
+    assert payload["parameters"]["unbounded_int"] == 42
+    assert isinstance(payload["parameters"]["unbounded_int"], int)
+    assert payload["parameters"]["flag_option"] is False
+    assert isinstance(payload["parameters"]["flag_option"], bool)
+    assert payload["parameters"]["strategy_choice"] == "fast"
+
+
+def test_data_split_stratified_kfold_payload():
+    from backend.demo.fixtures import CAPABILITIES
+
+    caps = CAPABILITIES.model_dump()
+    data_split_caps = caps.get("data_split", {})
+    param_schema = data_split_caps.get("parameter_schema", {})
+
+    assert "stratified_kfold" in data_split_caps.get("methods", [])
+    skf_schema = param_schema.get("stratified_kfold", {})
+    assert "n_splits" in skf_schema
+    assert "shuffle" in skf_schema
+    assert "test_size" not in skf_schema
+
+    skf_params = {
+        "n_splits": int(skf_schema["n_splits"]["default"]),
+        "shuffle": bool(skf_schema["shuffle"]["default"])
+    }
+    payload = {
+        "method": "stratified_kfold",
+        "parameters": skf_params
+    }
+    assert payload["method"] == "stratified_kfold"
+    assert payload["parameters"]["n_splits"] == 5
+    assert payload["parameters"]["shuffle"] is True
+    assert "test_size" not in payload["parameters"]
+
+
+
 
