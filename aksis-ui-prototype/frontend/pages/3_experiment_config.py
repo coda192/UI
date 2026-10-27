@@ -4,7 +4,8 @@ from frontend.utils.model_guidance import (
     get_algorithm_display_name,
     get_algorithm_metadata,
     is_config_applicable,
-    resolve_task_learning_types
+    resolve_task_learning_types,
+    validate_capability_path
 )
 from frontend.components.parameter_editor import render_parameter_editor
 
@@ -404,6 +405,7 @@ if learning_type and task and is_config_applicable(capabilities, "data_split", l
         val_options = split_meta.get("methods", []) if isinstance(split_meta, dict) else []
         split_param_schema = split_meta.get("parameter_schema", {}) if isinstance(split_meta, dict) else {}
         
+        ds_diag = validate_capability_path(capabilities, path=("data_split", "methods"), required=True, allow_empty=False)
         if val_options:
             val_strategy = st.selectbox(
                 "Doğrulama / Bölümleme Yöntemi", 
@@ -412,7 +414,7 @@ if learning_type and task and is_config_applicable(capabilities, "data_split", l
                 key="data_split_method_select"
             )
         else:
-            st.warning("Doğrulama yöntemi bulunamadı.")
+            st.warning(f"Doğrulama yöntemi bulunamadı: {ds_diag}")
             val_strategy = None
 
         if val_strategy:

@@ -510,5 +510,109 @@ def test_data_split_stratified_kfold_payload():
     assert "test_size" not in payload["parameters"]
 
 
+def test_capability_diagnostics_core_and_groups():
+    from frontend.utils.model_guidance import (
+        validate_capability_path,
+        diagnose_config_applicability,
+        diagnose_model_presets,
+        CapabilityDiagnostic
+    )
+
+    # 1. Core checks
+    diag_none = validate_capability_path(None, path=("learning_types",))
+    assert not diag_none
+    assert diag_none.code == "CAP-CORE-001"
+    assert "CAP-CORE-001" in str(diag_none)
+
+    caps = {
+        "learning_types": [],
+        "tasks": ["classification"],
+        "modes": []
+    }
+    diag_lt = validate_capability_path(caps, path=("learning_types",), allow_empty=False)
+    assert not diag_lt
+    assert diag_lt.code == "CAP-CORE-001"
+
+    diag_tasks = validate_capability_path(caps, path=("tasks",), allow_empty=False)
+    assert bool(diag_tasks) is True
+    assert diag_tasks.code == "CAP-OK"
+
+    diag_modes = validate_capability_path(caps, path=("modes",), allow_empty=False)
+    assert not diag_modes
+    assert diag_modes.code == "CAP-CORE-003"
+
+    diag_algos = validate_capability_path(caps, path=("algorithms",), required=True)
+    assert not diag_algos
+    assert diag_algos.code == "CAP-CORE-004"
+
+    # 2. Data Split checks
+    diag_ds_missing = validate_capability_path(caps, path=("data_split",), required=True)
+    assert not diag_ds_missing
+    assert diag_ds_missing.code == "CAP-DS-001"
+
+    caps["data_split"] = {"methods": []}
+    diag_ds_methods = validate_capability_path(caps, path=("data_split", "methods"), allow_empty=False)
+    assert not diag_ds_methods
+    assert diag_ds_methods.code == "CAP-DS-002"
+
+    diag_ds_schema = validate_capability_path(caps, path=("data_split", "parameter_schema"), required=True)
+    assert not diag_ds_schema
+    assert diag_ds_schema.code == "CAP-DS-003"
+
+    # 3. Tuning & Preprocessing checks
+    diag_tune = validate_capability_path(caps, path=("tuning",), required=True)
+    assert not diag_tune
+    assert diag_tune.code == "CAP-TUNE-001"
+
+    diag_prep = validate_capability_path(caps, path=("preprocessing",), required=True)
+    assert not diag_prep
+    assert diag_prep.code == "CAP-PREP-001"
+
+    # 4. Config Applicability detailed diagnostics
+    diag_app_missing = diagnose_config_applicability(caps, "data_split")
+    assert not diag_app_missing
+    assert diag_app_missing.code == "CAP-APP-001"
+
+    caps["config_applicability"] = {
+        "data_split": {
+            "algorithm_types": [],
+            "supported_tasks": ["classification"]
+        }
+    }
+    diag_app_entry = diagnose_config_applicability(caps, "preprocess")
+    assert not diag_app_entry
+    assert diag_app_entry.code == "CAP-APP-002"
+
+    diag_app_algo = diagnose_config_applicability(caps, "data_split")
+    assert not diag_app_algo
+    assert diag_app_algo.code == "CAP-APP-003"
+
+    caps["config_applicability"]["data_split"]["algorithm_types"] = ["supervised"]
+    caps["config_applicability"]["data_split"]["supported_tasks"] = []
+    diag_app_task = diagnose_config_applicability(caps, "data_split")
+    assert not diag_app_task
+    assert diag_app_task.code == "CAP-APP-004"
+
+    caps["config_applicability"]["data_split"]["supported_tasks"] = ["classification"]
+    diag_app_ok = diagnose_config_applicability(caps, "data_split")
+    assert bool(diag_app_ok) is True
+    assert diag_app_ok.code == "CAP-OK"
+
+    # 5. Model Presets detailed diagnostics
+    diag_preset_root = diagnose_model_presets(caps)
+    assert not diag_preset_root
+    assert diag_preset_root.code == "CAP-MODEL-001"
+
+    caps["model_presets"] = {"supervised": ["fast"], "unsupervised": []}
+    diag_preset_unsup = diagnose_model_presets(caps, "unsupervised")
+    assert not diag_preset_unsup
+    assert diag_preset_unsup.code == "CAP-MODEL-002"
+
+    diag_preset_sup = diagnose_model_presets(caps, "supervised")
+    assert bool(diag_preset_sup) is True
+    assert diag_preset_sup.code == "CAP-OK"
+
+
+
 
 
