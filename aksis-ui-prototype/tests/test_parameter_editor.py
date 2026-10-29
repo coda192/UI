@@ -311,203 +311,67 @@ def test_contextual_model_presets_and_tuning_capabilities():
     assert "scaling" in caps["preprocessing"]
 
 
-def test_data_split_schema_driven_method_selection_and_payload():
+def test_data_split_dynamic_type_rendering_and_payload():
     """
     Verifies that:
-    - Data split methods come from capabilities["data_split"]["methods"]
-    - holdout renders and populates test_size, without leaking n_splits
-    - kfold renders and populates n_splits, without leaking test_size
-    - generated payload contains only applicable parameters
+    1. methods drives method selection.
+    2. parameters drives dynamic controls.
+    3. bool values remain bool.
+    4. int values remain int.
+    5. float values remain float.
+    6. only returned parameters are included in payload.
+    7. no parameter_schema is required anymore.
     """
-    from backend.demo.fixtures import CAPABILITIES
-
-    caps = CAPABILITIES.model_dump()
-    data_split_caps = caps.get("data_split", {})
-    methods = data_split_caps.get("methods", [])
-    param_schema = data_split_caps.get("parameter_schema", {})
-
-    assert "holdout" in methods
-    assert "kfold" in methods
-    assert "stratified_kfold" in methods
-
-    # 1. Test Holdout parameter extraction
-    holdout_schema = param_schema.get("holdout", {})
-    assert "test_size" in holdout_schema
-    assert "n_splits" not in holdout_schema
-    assert holdout_schema["test_size"]["type"] == "float"
-    assert holdout_schema["test_size"]["default"] == 0.2
-    assert holdout_schema["test_size"]["min"] == 0.1
-    assert holdout_schema["test_size"]["max"] == 0.5
-    assert holdout_schema["test_size"]["step"] == 0.05
-
-    # Simulated holdout parameters collected by UI
-    holdout_params = {}
-    for p_name, p_spec in holdout_schema.items():
-        holdout_params[p_name] = p_spec.get("default")
-
-    holdout_payload = {
-        "method": "holdout",
-        "parameters": holdout_params
-    }
-
-    assert holdout_payload["method"] == "holdout"
-    assert "test_size" in holdout_payload["parameters"]
-    assert holdout_payload["parameters"]["test_size"] == 0.2
-    assert "n_splits" not in holdout_payload["parameters"]
-
-    # 2. Test K-Fold parameter extraction
-    kfold_schema = param_schema.get("kfold", {})
-    assert "n_splits" in kfold_schema
-    assert "test_size" not in kfold_schema
-    assert kfold_schema["n_splits"]["type"] == "int"
-    assert kfold_schema["n_splits"]["default"] == 5
-    assert kfold_schema["n_splits"]["min"] == 2
-    assert kfold_schema["n_splits"]["max"] == 20
-    assert kfold_schema["n_splits"]["step"] == 1
-
-    # Simulated kfold parameters collected by UI
-    kfold_params = {}
-    for p_name, p_spec in kfold_schema.items():
-        kfold_params[p_name] = p_spec.get("default")
-
-    kfold_payload = {
-        "method": "kfold",
-        "parameters": kfold_params
-    }
-
-    assert kfold_payload["method"] == "kfold"
-    assert "n_splits" in kfold_payload["parameters"]
-    assert kfold_payload["parameters"]["n_splits"] == 5
-    assert "test_size" not in kfold_payload["parameters"]
-
-
-def test_data_split_slider_and_num_sync_logic():
-    """
-    Verifies that the bidirectional slider and number input sync handlers keep
-    session state synchronized for both float and int types.
-    """
-    state = {
-        "ds_holdout_test_size_slider": 0.2,
-        "ds_holdout_test_size_num": 0.2,
-        "ds_kfold_n_splits_slider": 5,
-        "ds_kfold_n_splits_num": 5
-    }
-
-    # Simulate slider change for float
-    state["ds_holdout_test_size_slider"] = 0.35
-    state["ds_holdout_test_size_num"] = state["ds_holdout_test_size_slider"]
-    assert state["ds_holdout_test_size_num"] == 0.35
-
-    # Simulate manual num change for float
-    state["ds_holdout_test_size_num"] = 0.25
-    state["ds_holdout_test_size_slider"] = state["ds_holdout_test_size_num"]
-    assert state["ds_holdout_test_size_slider"] == 0.25
-
-    # Simulate slider change for int
-    state["ds_kfold_n_splits_slider"] = 10
-    state["ds_kfold_n_splits_num"] = state["ds_kfold_n_splits_slider"]
-    assert state["ds_kfold_n_splits_num"] == 10
-
-    # Simulate manual num change for int
-    state["ds_kfold_n_splits_num"] = 8
-    state["ds_kfold_n_splits_slider"] = state["ds_kfold_n_splits_num"]
-    assert state["ds_kfold_n_splits_slider"] == 8
-
-
-def test_data_split_unbounded_numeric_and_other_types():
-    """
-    Verifies that:
-    - Numeric parameters without min/max do not receive fabricated ranges
-    - Types (int, float, bool, choice) are correctly preserved in collected payload
-    - Stratified K-Fold works identically to K-Fold with its own isolated parameters
-    """
-    custom_schema = {
-        "custom_method": {
-            "unbounded_float": {
-                "type": "float",
-                "default": 1.5,
-                "description": "Unbounded float parameter"
-            },
-            "unbounded_int": {
-                "type": "int",
-                "default": 42,
-                "description": "Unbounded int parameter"
-            },
-            "flag_option": {
-                "type": "bool",
-                "default": False,
-                "description": "Boolean flag"
-            },
-            "strategy_choice": {
-                "type": "choice",
-                "default": "fast",
-                "choices": ["fast", "precise"],
-                "description": "Choice parameter"
+    capabilities = {
+        "data_split": {
+            "methods": ["standard_random"],
+            "parameters": {
+                "test_size": 0.2,
+                "random_state": 42,
+                "shuffle": True,
+                "stratify_column": "target"
             }
         }
     }
 
-    params = {}
-    for p_name, p_spec in custom_schema["custom_method"].items():
-        p_type = p_spec["type"]
-        p_default = p_spec.get("default")
-        p_min = p_spec.get("min")
-        p_max = p_spec.get("max")
+    split_meta = capabilities["data_split"]
+    val_options = split_meta.get("methods", [])
+    split_params = split_meta.get("parameters", {})
 
-        # Unbounded numeric check: min and max are absent
-        if p_type in ("int", "float"):
-            assert p_min is None
-            assert p_max is None
-            if p_type == "int":
-                params[p_name] = int(p_default)
-            else:
-                params[p_name] = float(p_default)
-        elif p_type == "bool":
-            params[p_name] = bool(p_default)
-        elif p_type in ("choice", "enum"):
-            assert p_default in p_spec["choices"]
-            params[p_name] = p_default
+    assert val_options == ["standard_random"]
+    assert "parameter_schema" not in split_meta
+
+    val_strategy = val_options[0]
+    data_split_params = {}
+
+    for p_name, p_default in split_params.items():
+        if isinstance(p_default, bool):
+            data_split_params[p_name] = bool(p_default)
+        elif isinstance(p_default, int):
+            data_split_params[p_name] = int(p_default)
+        elif isinstance(p_default, float):
+            data_split_params[p_name] = float(p_default)
+        elif isinstance(p_default, str):
+            data_split_params[p_name] = str(p_default)
+        else:
+            data_split_params[p_name] = p_default
 
     payload = {
-        "method": "custom_method",
-        "parameters": params
+        "method": val_strategy,
+        "parameters": data_split_params
     }
 
-    assert payload["method"] == "custom_method"
-    assert payload["parameters"]["unbounded_float"] == 1.5
-    assert isinstance(payload["parameters"]["unbounded_float"], float)
-    assert payload["parameters"]["unbounded_int"] == 42
-    assert isinstance(payload["parameters"]["unbounded_int"], int)
-    assert payload["parameters"]["flag_option"] is False
-    assert isinstance(payload["parameters"]["flag_option"], bool)
-    assert payload["parameters"]["strategy_choice"] == "fast"
-
-
-def test_data_split_stratified_kfold_payload():
-    from backend.demo.fixtures import CAPABILITIES
-
-    caps = CAPABILITIES.model_dump()
-    data_split_caps = caps.get("data_split", {})
-    param_schema = data_split_caps.get("parameter_schema", {})
-
-    assert "stratified_kfold" in data_split_caps.get("methods", [])
-    skf_schema = param_schema.get("stratified_kfold", {})
-    assert "n_splits" in skf_schema
-    assert "shuffle" in skf_schema
-    assert "test_size" not in skf_schema
-
-    skf_params = {
-        "n_splits": int(skf_schema["n_splits"]["default"]),
-        "shuffle": bool(skf_schema["shuffle"]["default"])
-    }
-    payload = {
-        "method": "stratified_kfold",
-        "parameters": skf_params
-    }
-    assert payload["method"] == "stratified_kfold"
-    assert payload["parameters"]["n_splits"] == 5
+    assert payload["method"] == "standard_random"
+    assert payload["parameters"]["test_size"] == 0.2
+    assert isinstance(payload["parameters"]["test_size"], float)
+    assert payload["parameters"]["random_state"] == 42
+    assert isinstance(payload["parameters"]["random_state"], int)
     assert payload["parameters"]["shuffle"] is True
-    assert "test_size" not in payload["parameters"]
+    assert isinstance(payload["parameters"]["shuffle"], bool)
+    assert payload["parameters"]["stratify_column"] == "target"
+    assert isinstance(payload["parameters"]["stratify_column"], str)
+    assert "n_splits" not in payload["parameters"]
+    assert len(payload["parameters"]) == 4
 
 
 def test_capability_diagnostics_core_and_groups():
@@ -555,9 +419,9 @@ def test_capability_diagnostics_core_and_groups():
     assert not diag_ds_methods
     assert diag_ds_methods.code == "CAP-DS-002"
 
-    diag_ds_schema = validate_capability_path(caps, path=("data_split", "parameter_schema"), required=True)
-    assert not diag_ds_schema
-    assert diag_ds_schema.code == "CAP-DS-003"
+    diag_ds_params = validate_capability_path(caps, path=("data_split", "parameters"), required=True)
+    assert not diag_ds_params
+    assert diag_ds_params.code == "CAP-DS-003"
 
     # 3. Tuning & Preprocessing checks
     diag_tune = validate_capability_path(caps, path=("tuning",), required=True)

@@ -401,10 +401,10 @@ data_split_params = {}
 
 if learning_type and task and is_config_applicable(capabilities, "data_split", learning_type, task):
     with st.expander("📐 Veri Bölümleme ve Doğrulama (Data Splitting & Validation)"):
-        split_meta = capabilities.get("data_split", {})
+        split_meta = capabilities.get("data_split", {}) if isinstance(capabilities, dict) else {}
         val_options = split_meta.get("methods", []) if isinstance(split_meta, dict) else []
-        split_param_schema = split_meta.get("parameter_schema", {}) if isinstance(split_meta, dict) else {}
-        
+        split_params = split_meta.get("parameters", {}) if isinstance(split_meta, dict) else {}
+
         ds_diag = validate_capability_path(capabilities, path=("data_split", "methods"), required=True, allow_empty=False)
         if val_options:
             val_strategy = st.selectbox(
@@ -417,148 +417,49 @@ if learning_type and task and is_config_applicable(capabilities, "data_split", l
             st.warning(f"Doğrulama yöntemi bulunamadı: {ds_diag}")
             val_strategy = None
 
-        if val_strategy:
-            method_schema = split_param_schema.get(val_strategy, {})
-            # Her bir parametre için schema-driven kontroller
-            for p_name, p_spec in method_schema.items():
-                if not isinstance(p_spec, dict):
-                    continue
+        if val_strategy and isinstance(split_params, dict):
+            for p_name, p_default in split_params.items():
+                p_label = p_name.replace("_", " ").title()
+                field_key = f"ds_{val_strategy}_{p_name}"
 
-                p_type = p_spec.get("type", "str")
-                p_label = p_spec.get("description") or p_name.replace("_", " ").title()
-                p_default = p_spec.get("default")
-                p_min = p_spec.get("min")
-                p_max = p_spec.get("max")
-                p_step = p_spec.get("step")
-
-                slider_key = f"ds_{val_strategy}_{p_name}_slider"
-                num_key = f"ds_{val_strategy}_{p_name}_num"
-
-                if p_type == "float":
-                    min_f = float(p_min) if p_min is not None else None
-                    max_f = float(p_max) if p_max is not None else None
-                    def_f = float(p_default) if p_default is not None else (min_f if min_f is not None else 0.0)
-                    step_f = float(p_step) if p_step is not None else 0.01
-
-                    # Eğer min ve max mevcutsa senkronize slider + number input sun
-                    if min_f is not None and max_f is not None:
-                        if slider_key not in st.session_state:
-                            st.session_state[slider_key] = def_f
-                        if num_key not in st.session_state:
-                            st.session_state[num_key] = def_f
-
-                        def _sync_from_slider_f(sk=slider_key, nk=num_key):
-                            st.session_state[nk] = st.session_state[sk]
-
-                        def _sync_from_num_f(sk=slider_key, nk=num_key):
-                            st.session_state[sk] = st.session_state[nk]
-
-                        st.caption(f"**{p_label}** (`{p_name}`)")
-                        col_s, col_n = st.columns([3, 1])
-                        with col_s:
-                            st.slider(
-                                label=f"{p_name} slider",
-                                min_value=min_f,
-                                max_value=max_f,
-                                step=step_f,
-                                key=slider_key,
-                                on_change=_sync_from_slider_f,
-                                label_visibility="collapsed"
-                            )
-                        with col_n:
-                            st.number_input(
-                                label=f"{p_name} num",
-                                min_value=min_f,
-                                max_value=max_f,
-                                step=step_f,
-                                format="%.4f" if step_f < 0.01 else "%.2f",
-                                key=num_key,
-                                on_change=_sync_from_num_f,
-                                label_visibility="collapsed"
-                            )
-                        data_split_params[p_name] = float(st.session_state[num_key])
-                    else:
-                        val = st.number_input(
-                            label=f"{p_label} (`{p_name}`)",
-                            value=def_f,
-                            min_value=min_f,
-                            max_value=max_f,
-                            step=step_f,
-                            key=num_key
-                        )
-                        data_split_params[p_name] = float(val)
-
-                elif p_type == "int":
-                    min_i = int(p_min) if p_min is not None else None
-                    max_i = int(p_max) if p_max is not None else None
-                    def_i = int(p_default) if p_default is not None else (min_i if min_i is not None else 0)
-                    step_i = int(p_step) if p_step is not None else 1
-
-                    if min_i is not None and max_i is not None:
-                        if slider_key not in st.session_state:
-                            st.session_state[slider_key] = def_i
-                        if num_key not in st.session_state:
-                            st.session_state[num_key] = def_i
-
-                        def _sync_from_slider_i(sk=slider_key, nk=num_key):
-                            st.session_state[nk] = st.session_state[sk]
-
-                        def _sync_from_num_i(sk=slider_key, nk=num_key):
-                            st.session_state[sk] = st.session_state[nk]
-
-                        st.caption(f"**{p_label}** (`{p_name}`)")
-                        col_s, col_n = st.columns([3, 1])
-                        with col_s:
-                            st.slider(
-                                label=f"{p_name} slider",
-                                min_value=min_i,
-                                max_value=max_i,
-                                step=step_i,
-                                key=slider_key,
-                                on_change=_sync_from_slider_i,
-                                label_visibility="collapsed"
-                            )
-                        with col_n:
-                            st.number_input(
-                                label=f"{p_name} num",
-                                min_value=min_i,
-                                max_value=max_i,
-                                step=step_i,
-                                key=num_key,
-                                on_change=_sync_from_num_i,
-                                label_visibility="collapsed"
-                            )
-                        data_split_params[p_name] = int(st.session_state[num_key])
-                    else:
-                        val = st.number_input(
-                            label=f"{p_label} (`{p_name}`)",
-                            value=def_i,
-                            min_value=min_i,
-                            max_value=max_i,
-                            step=step_i,
-                            key=num_key
-                        )
-                        data_split_params[p_name] = int(val)
-
-                elif p_type == "bool":
-                    def_b = bool(p_default) if p_default is not None else False
+                # bool check must precede int because isinstance(True, int) is True
+                if isinstance(p_default, bool):
                     val = st.checkbox(
                         label=f"{p_label} (`{p_name}`)",
-                        value=def_b,
-                        key=f"ds_{val_strategy}_{p_name}_bool"
+                        value=p_default,
+                        key=f"{field_key}_bool"
                     )
                     data_split_params[p_name] = bool(val)
 
-                elif p_type in ("choice", "enum"):
-                    choices = p_spec.get("choices", [])
-                    idx = choices.index(p_default) if p_default in choices else 0
-                    val = st.selectbox(
+                elif isinstance(p_default, int):
+                    val = st.number_input(
                         label=f"{p_label} (`{p_name}`)",
-                        options=choices,
-                        index=idx,
-                        key=f"ds_{val_strategy}_{p_name}_choice"
+                        value=p_default,
+                        step=1,
+                        key=f"{field_key}_int"
                     )
-                    data_split_params[p_name] = val
+                    data_split_params[p_name] = int(val)
+
+                elif isinstance(p_default, float):
+                    val = st.number_input(
+                        label=f"{p_label} (`{p_name}`)",
+                        value=p_default,
+                        step=0.01 if p_default < 1.0 else 1.0,
+                        format="%.4f" if p_default < 0.01 else "%.2f",
+                        key=f"{field_key}_float"
+                    )
+                    data_split_params[p_name] = float(val)
+
+                elif isinstance(p_default, str):
+                    val = st.text_input(
+                        label=f"{p_label} (`{p_name}`)",
+                        value=p_default,
+                        key=f"{field_key}_str"
+                    )
+                    data_split_params[p_name] = str(val)
+
+                else:
+                    data_split_params[p_name] = p_default
 
 # Preprocess konfigürasyonu
 preprocess_payload = None

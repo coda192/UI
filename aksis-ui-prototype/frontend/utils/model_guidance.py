@@ -215,7 +215,7 @@ KNOWN_ERROR_CODES: Dict[tuple, Dict[str, str]] = {
         "empty": "CAP-DS-002",
         "invalid": "CAP-DS-002"
     },
-    ("data_split", "parameter_schema"): {
+    ("data_split", "parameters"): {
         "missing": "CAP-DS-003",
         "empty": "CAP-DS-003",
         "invalid": "CAP-DS-003"
