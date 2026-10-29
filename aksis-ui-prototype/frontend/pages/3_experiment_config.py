@@ -422,8 +422,35 @@ if learning_type and task and is_config_applicable(capabilities, "data_split", l
                 p_label = p_name.replace("_", " ").title()
                 field_key = f"ds_{val_strategy}_{p_name}"
 
-                # bool check must precede int because isinstance(True, int) is True
-                if isinstance(p_default, bool):
+                # 1. Special-case: test_size -> slider (0.0 - 1.0, step=0.05)
+                if p_name == "test_size":
+                    def_val = float(p_default) if p_default is not None else 0.2
+                    val = st.slider(
+                        label=f"{p_label} (`{p_name}`)",
+                        min_value=0.0,
+                        max_value=1.0,
+                        value=def_val,
+                        step=0.05,
+                        key=f"{field_key}_slider"
+                    )
+                    data_split_params[p_name] = float(val)
+
+                # 2. Special-case: random_state -> text_input without +/- stepper controls
+                elif p_name == "random_state":
+                    str_default = str(p_default) if p_default is not None else "42"
+                    val_str = st.text_input(
+                        label=f"{p_label} (`{p_name}`)",
+                        value=str_default,
+                        key=f"{field_key}_text"
+                    )
+                    try:
+                        data_split_params[p_name] = int(val_str.strip())
+                    except (ValueError, TypeError):
+                        st.error(f"Geçersiz `{p_name}` değeri: '{val_str}'. Lütfen geçerli bir tam sayı girin.")
+                        data_split_params[p_name] = val_str
+
+                # 3. Special-case: shuffle -> checkbox (or any bool)
+                elif isinstance(p_default, bool):
                     val = st.checkbox(
                         label=f"{p_label} (`{p_name}`)",
                         value=p_default,
@@ -431,6 +458,7 @@ if learning_type and task and is_config_applicable(capabilities, "data_split", l
                     )
                     data_split_params[p_name] = bool(val)
 
+                # 4. Generic fallback: int
                 elif isinstance(p_default, int):
                     val = st.number_input(
                         label=f"{p_label} (`{p_name}`)",
@@ -440,6 +468,7 @@ if learning_type and task and is_config_applicable(capabilities, "data_split", l
                     )
                     data_split_params[p_name] = int(val)
 
+                # 5. Generic fallback: float
                 elif isinstance(p_default, float):
                     val = st.number_input(
                         label=f"{p_label} (`{p_name}`)",
@@ -450,6 +479,7 @@ if learning_type and task and is_config_applicable(capabilities, "data_split", l
                     )
                     data_split_params[p_name] = float(val)
 
+                # 6. Generic fallback: str
                 elif isinstance(p_default, str):
                     val = st.text_input(
                         label=f"{p_label} (`{p_name}`)",
@@ -458,6 +488,7 @@ if learning_type and task and is_config_applicable(capabilities, "data_split", l
                     )
                     data_split_params[p_name] = str(val)
 
+                # 7. Other unknown types
                 else:
                     data_split_params[p_name] = p_default
 
