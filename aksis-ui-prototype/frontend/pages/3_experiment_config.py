@@ -9,8 +9,15 @@ from frontend.utils.model_guidance import (
 )
 from frontend.components.parameter_editor import render_parameter_editor
 
-st.title("⚙️ Deney Yapılandırma")
-st.caption("Makine öğrenmesi deneyiniz için veri seti, görev, model ve çalışma ayarlarını yapılandırın.")
+# Sayfa Başlığı ve Açıklama
+st.markdown("""
+<div style="margin-bottom: 1.25rem;">
+    <h1 style="margin-bottom: 0.25rem;">⚙️ Deney Yapılandırma Stüdyosu</h1>
+    <p style="color: #64748b; font-size: 1.0rem; margin: 0;">
+        AKSIS Makine Öğrenmesi Platformu — Veri seti, görev tipi, model mimarisi, önişleme boru hattı ve doğrulama stratejisini yapılandırın.
+    </p>
+</div>
+""", unsafe_allow_html=True)
 
 client = st.session_state.client
 
@@ -80,6 +87,21 @@ TUNING_PRUNER_TR = {
     "hyperband": "Hyperband"
 }
 
+PARAM_HELP_TR = {
+    "n_features": "Özellik uzayının eşleneceği hash boyutu (çıktı sütun sayısı). Yüksek kardinalite için 1000 - 1000000 aralığında seçilebilir.",
+    "n_hash_features": "Özellik uzayının eşleneceği hash boyutu (çıktı sütun sayısı).",
+    "handle_unknown": "Eğitim kümesinde yer almayan yeni kategorilerle karşılaşıldığında uygulanacak strateji.",
+    "drop_invariant": "Tüm satırlarda tek bir sabit değere sahip varyanssız sütunların otomatik elenmesi.",
+    "with_mean": "Verilerin ortalamasını sıfıra merkezleme. Seyrek matrislerde bellek tasarrufu için False seçilmelidir.",
+    "with_std": "Verileri birim varyansa (standart sapma 1) ölçeklendirme.",
+    "feature_range": "Özelliklerin dönüştürüleceği min-max değer aralığı.",
+    "quantile_range": "Aykırı değerlere karşı dayanıklılık için kullanılan yüzdelik dilim aralığı (IQR).",
+    "random_state": "Rastgele sayı üreteci tohumu (deneyin tekrarlanabilirliği için sabit tam sayı).",
+    "test_size": "Veri kümesinin test/doğrulama için ayrılacak oranı (0.0 - 1.0 arası).",
+    "shuffle": "Bölümleme öncesinde veri satırlarını rastgele karıştır.",
+    "n_splits": "K-Fold çapraz doğrulama için katlama (split) sayısı."
+}
+
 # ==============================================================================
 # 1. CAPABILITIES VE DATASETS YÜKLEME (API FLOW)
 # ==============================================================================
@@ -113,179 +135,192 @@ default_ds_idx = 0
 if "selected_dataset_id" in st.session_state and st.session_state.selected_dataset_id in dataset_options:
     default_ds_idx = list(dataset_options.keys()).index(st.session_state.selected_dataset_id)
 
-selected_dataset_id = st.selectbox(
-    "📁 Kullanılacak Veri Seti (Dataset)", 
-    options=list(dataset_options.keys()), 
-    format_func=lambda x: dataset_options[x], 
-    index=default_ds_idx,
-    key="exp_dataset_select"
-)
-st.session_state.selected_dataset_id = selected_dataset_id
+with st.container(border=True):
+    st.markdown("### 📁 1. Veri Seti & Çalışma Kapsamı")
+    st.caption("Deneyin yürütüleceği veri kaynağını, adlandırmasını ve temel makine öğrenmesi görevini belirleyin.")
 
-selected_ds_meta = next(d for d in datasets if d["id"] == selected_dataset_id)
-compatible_tasks = selected_ds_meta.get("compatible_tasks") or []
-
-if not compatible_tasks:
-    st.error(f"Seçilen veri seti ('{selected_ds_meta.get('name')}') için DataSpec üzerinde uyumlu bir görev tanımlanmamış.")
-    st.stop()
-
-# AKSIS capabilities["config_applicability"] ve ["tasks"] üzerinden uyumlu görev ve öğrenme türlerini dinamik çözümle
-valid_task_to_lt = resolve_task_learning_types(capabilities, compatible_tasks)
-
-valid_tasks = list(valid_task_to_lt.keys())
-valid_learning_types = list(dict.fromkeys(valid_task_to_lt.values()))
-
-if not valid_tasks:
-    supported_aksis_tasks = capabilities.get("tasks", [])
-    st.error(
-        f"Veri setinin uyumlu görevleri ({compatible_tasks}) ile AKSIS çerçevesinin desteklediği görevler ({supported_aksis_tasks}) arasında eşleşme bulunamadı. "
-        "Veri seti meta verisi ile mevcut AKSIS yetenekleri birbiriyle uyumsuz."
-    )
-    st.stop()
-
-# ==============================================================================
-# 3. GENEL PARAMETRELER & ÇALIŞMA MODU
-# ==============================================================================
-st.subheader("1. Genel Parametreler & Çalışma Modu (Execution Mode)")
-default_exp_name = f"Deney_{selected_ds_meta['name'].replace('.csv', '')}"
-exp_name = st.text_input("Deney Adı (Project Name)", value=default_exp_name)
-
-# Bilgi Kartı veya Seçim: Learning Type & Task
-col_info1, col_info2, col_info3 = st.columns(3)
-
-with col_info1:
-    if len(valid_learning_types) == 1:
-        learning_type = valid_learning_types[0]
-        st.caption("Öğrenme Türü (Learning Type)")
-        st.markdown(f"**{LEARNING_TYPES_TR.get(learning_type, learning_type)}**")
-    else:
-        learning_type = st.selectbox(
-            "Öğrenme Türü (Learning Type)",
-            options=valid_learning_types,
-            format_func=lambda x: LEARNING_TYPES_TR.get(x, x)
+    c_ds1, c_ds2 = st.columns([1, 1])
+    with c_ds1:
+        selected_dataset_id = st.selectbox(
+            "Kullanılacak Veri Seti (Dataset)", 
+            options=list(dataset_options.keys()), 
+            format_func=lambda x: dataset_options[x], 
+            index=default_ds_idx,
+            key="exp_dataset_select"
         )
+        st.session_state.selected_dataset_id = selected_dataset_id
 
-with col_info2:
-    # Seçilen learning_type altında kalan geçerli görevler
-    active_valid_tasks = [t for t, lt in valid_task_to_lt.items() if lt == learning_type]
-    if len(active_valid_tasks) == 1:
-        task = active_valid_tasks[0]
-        st.caption("Görev (Task)")
-        st.markdown(f"**{TASK_NAMES_TR.get(task, task)}**")
-    else:
-        task = st.selectbox(
-            "Görev (Task)",
-            options=active_valid_tasks,
-            format_func=lambda x: TASK_NAMES_TR.get(x, x)
+    selected_ds_meta = next(d for d in datasets if d["id"] == selected_dataset_id)
+    compatible_tasks = selected_ds_meta.get("compatible_tasks") or []
+
+    if not compatible_tasks:
+        st.error(f"Seçilen veri seti ('{selected_ds_meta.get('name')}') için DataSpec üzerinde uyumlu bir görev tanımlanmamış.")
+        st.stop()
+
+    # AKSIS capabilities["config_applicability"] ve ["tasks"] üzerinden uyumlu görev ve öğrenme türlerini dinamik çözümle
+    valid_task_to_lt = resolve_task_learning_types(capabilities, compatible_tasks)
+
+    valid_tasks = list(valid_task_to_lt.keys())
+    valid_learning_types = list(dict.fromkeys(valid_task_to_lt.values()))
+
+    if not valid_tasks:
+        supported_aksis_tasks = capabilities.get("tasks", [])
+        st.error(
+            f"Veri setinin uyumlu görevleri ({compatible_tasks}) ile AKSIS çerçevesinin desteklediği görevler ({supported_aksis_tasks}) arasında eşleşme bulunamadı. "
+            "Veri seti meta verisi ile mevcut AKSIS yetenekleri birbiriyle uyumsuz."
         )
+        st.stop()
 
-with col_info3:
-    api_modes = capabilities.get("modes", [])
-    workflow_modes = [m for m in api_modes if m in ("train", "tune")]
-    if not workflow_modes:
-        st.warning("Bu iş akışı için geçerli bir çalıştırma modu bulunamadı.")
-        selected_mode = None
-    else:
-        selected_mode = st.selectbox(
-            "Çalışma Modu (Execution Mode)",
-            options=workflow_modes,
-            format_func=lambda m: MODE_NAMES_TR.get(m, m),
-            help="'train': Standart model eğitimi | 'tune': Optuna ile otomatik hiperparametre optimizasyonu"
-        )
+    with c_ds2:
+        default_exp_name = f"Deney_{selected_ds_meta['name'].replace('.csv', '')}"
+        exp_name = st.text_input("Deney Adı (Project Name)", value=default_exp_name)
 
-st.divider()
+    # Parametre Seçimleri: Learning Type, Task, Execution Mode
+    col_info1, col_info2, col_info3 = st.columns(3)
+
+    with col_info1:
+        if len(valid_learning_types) == 1:
+            learning_type = valid_learning_types[0]
+            st.caption("Öğrenme Türü (Learning Type)")
+            st.markdown(f"**{LEARNING_TYPES_TR.get(learning_type, learning_type)}**")
+        else:
+            learning_type = st.selectbox(
+                "Öğrenme Türü (Learning Type)",
+                options=valid_learning_types,
+                format_func=lambda x: LEARNING_TYPES_TR.get(x, x)
+            )
+
+    with col_info2:
+        active_valid_tasks = [t for t, lt in valid_task_to_lt.items() if lt == learning_type]
+        if len(active_valid_tasks) == 1:
+            task = active_valid_tasks[0]
+            st.caption("Görev (Task)")
+            st.markdown(f"**{TASK_NAMES_TR.get(task, task)}**")
+        else:
+            task = st.selectbox(
+                "Görev (Task)",
+                options=active_valid_tasks,
+                format_func=lambda x: TASK_NAMES_TR.get(x, x)
+            )
+
+    with col_info3:
+        api_modes = capabilities.get("modes", [])
+        workflow_modes = [m for m in api_modes if m in ("train", "tune")]
+        if not workflow_modes:
+            st.warning("Bu iş akışı için geçerli bir çalıştırma modu bulunamadı.")
+            selected_mode = None
+        else:
+            selected_mode = st.selectbox(
+                "Çalışma Modu (Execution Mode)",
+                options=workflow_modes,
+                format_func=lambda m: MODE_NAMES_TR.get(m, m),
+                help="'train': Standart model eğitimi | 'tune': Optuna ile otomatik hiperparametre optimizasyonu"
+            )
 
 # ==============================================================================
-# 4. MODEL VE ALGORİTMA SEÇİMİ (Model & Algorithm)
+# 3. MODEL VE ALGORİTMA SEÇİMİ (Model & Algorithm)
 # ==============================================================================
-st.subheader("2. Model ve Algoritma (Model & Algorithm)")
-
 custom_overrides = {}
 
-if task:
-    available_algos = capabilities.get("algorithms", {}).get(task, [])
-    presets_dict = capabilities.get("model_presets", {})
-    if isinstance(presets_dict, dict):
-        api_presets = presets_dict.get(learning_type, [])
-    elif isinstance(presets_dict, list):
-        api_presets = presets_dict
+with st.container(border=True):
+    st.markdown("### 🤖 2. Model ve Algoritma Seçimi")
+    st.caption("Göreviniz için AKSIS model kataloğundan uygun algoritmayı ve konfigürasyon hazır ayarını seçin.")
+
+    if task:
+        available_algos = capabilities.get("algorithms", {}).get(task, [])
+        presets_dict = capabilities.get("model_presets", {})
+        if isinstance(presets_dict, dict):
+            api_presets = presets_dict.get(learning_type, [])
+        elif isinstance(presets_dict, list):
+            api_presets = presets_dict
+        else:
+            api_presets = []
+        
+        if not available_algos:
+            st.warning(f"'{task}' görevi için AKSIS yeteneklerinde kayıtlı algoritma bulunamadı.")
+            algorithm = None
+            preset = None
+        else:
+            col_m1, col_m2 = st.columns(2)
+            with col_m1:
+                algorithm = st.selectbox(
+                    "Algoritma (Algorithm)", 
+                    options=available_algos,
+                    format_func=lambda x: get_algorithm_display_name(x, capabilities),
+                    help="AKSIS Registry tarafından sunulan algoritmalar",
+                    key="model_algo_select"
+                )
+            with col_m2:
+                if api_presets:
+                    preset = st.selectbox(
+                        "Model Hazır Ayarı (Model Preset)", 
+                        options=api_presets,
+                        format_func=lambda x: PRESET_NAMES_TR.get(x, x),
+                        key="model_preset_select"
+                    )
+                else:
+                    preset = None
+                
+            # Uyumsuz session state parametrelerini temizle (State cleanup)
+            current_model_context = f"{task}_{algorithm}_{preset}"
+            if st.session_state.get("last_model_context") != current_model_context:
+                for k in list(st.session_state.keys()):
+                    if k.startswith("custom_param_"):
+                        del st.session_state[k]
+                st.session_state.last_model_context = current_model_context
+
+            # Seçilen model için karar destek rehberi (Decision Support Card)
+            if algorithm:
+                algo_meta = get_algorithm_metadata(algorithm, capabilities)
+                display_title = algo_meta.get("display_name") or algorithm
+                description = algo_meta.get("description", "Model açıklaması sağlanmamış.")
+                strengths = algo_meta.get("strengths", [])
+                limitations = algo_meta.get("limitations", [])
+                best_for = algo_meta.get("best_for", [])
+                
+                with st.container(border=True):
+                    st.markdown(f"#### ⚡ Model Rehberi: {display_title}")
+                    if display_title != algorithm:
+                        st.caption(f"Sistem Kayıt Anahtarı: `{algorithm}`")
+                    st.write(description)
+                    
+                    c_guide1, c_guide2, c_guide3 = st.columns(3)
+                    with c_guide1:
+                        st.markdown("**🎯 En Uygun Senaryolar**")
+                        if best_for:
+                            items = best_for if isinstance(best_for, list) else [best_for]
+                            for item in items:
+                                st.markdown(f"- {item}")
+                        else:
+                            st.caption("Belirtilmemiş")
+                    with c_guide2:
+                        st.markdown("**✅ Güçlü Yönler**")
+                        if strengths:
+                            items = strengths if isinstance(strengths, list) else [strengths]
+                            for item in items:
+                                st.markdown(f"- {item}")
+                        else:
+                            st.caption("Belirtilmemiş")
+                    with c_guide3:
+                        st.markdown("**⚠️ Dikkat / Kısıtlar**")
+                        if limitations:
+                            items = limitations if isinstance(limitations, list) else [limitations]
+                            for item in items:
+                                st.markdown(f"- {item}")
+                        else:
+                            st.caption("Belirtilmemiş")
+
+            # ÖZEL MODEL PARAMETRELERİ (Yalnızca preset == "custom" İken Açılır)
+            if preset == "custom" and algorithm:
+                st.divider()
+                st.info("Custom model parameter configuration is temporarily disabled for the demo.")
     else:
-        api_presets = []
-    
-    if not available_algos:
-        st.warning(f"'{task}' görevi için AKSIS yeteneklerinde kayıtlı algoritma bulunamadı.")
         algorithm = None
         preset = None
-    else:
-        col_m1, col_m2 = st.columns(2)
-        with col_m1:
-            algorithm = st.selectbox(
-                "Algoritma (Algorithm)", 
-                options=available_algos,
-                format_func=lambda x: get_algorithm_display_name(x, capabilities),
-                help="AKSIS Registry tarafından sunulan algoritmalar",
-                key="model_algo_select"
-            )
-        with col_m2:
-            if api_presets:
-                preset = st.selectbox(
-                    "Model Hazır Ayarı (Model Preset)", 
-                    options=api_presets,
-                    format_func=lambda x: PRESET_NAMES_TR.get(x, x),
-                    key="model_preset_select"
-                )
-            else:
-                preset = None
-            
-        # Uyumsuz session state parametrelerini temizle (State cleanup)
-        current_model_context = f"{task}_{algorithm}_{preset}"
-        if st.session_state.get("last_model_context") != current_model_context:
-            for k in list(st.session_state.keys()):
-                if k.startswith("custom_param_"):
-                    del st.session_state[k]
-            st.session_state.last_model_context = current_model_context
-
-        # Seçilen model için anlık karar destek rehberi
-        if algorithm:
-            algo_meta = get_algorithm_metadata(algorithm, capabilities)
-            display_title = algo_meta.get("display_name") or algorithm
-            description = algo_meta.get("description", "Model açıklaması sağlanmamış.")
-            strengths = algo_meta.get("strengths", [])
-            limitations = algo_meta.get("limitations", [])
-            best_for = algo_meta.get("best_for", [])
-            
-            with st.container(border=True):
-                st.markdown(f"### ⚡ {display_title}")
-                if display_title != algorithm:
-                    st.caption(f"`{algorithm}`")
-                st.write(description)
-                if best_for:
-                    st.markdown(f"**🎯 En Uygun Senaryo:** {', '.join(best_for) if isinstance(best_for, list) else best_for}")
-                if strengths:
-                    st.caption(f"**✅ Güçlü Yönler:** {', '.join(strengths) if isinstance(strengths, list) else strengths}")
-                if limitations:
-                    st.caption(f"**⚠️ Dikkat Edilmesi Gerekenler:** {', '.join(limitations) if isinstance(limitations, list) else limitations}")
-
-        # ==============================================================================
-        # ÖZEL MODEL PARAMETRELERİ (Yalnızca preset == "custom" İken Açılır)
-        # ==============================================================================
-        if preset == "custom" and algorithm:
-            st.divider()
-            # TODO: Re-enable custom parameter editing after the schema-driven parameter contract is finalized.
-            st.info("Custom model parameter configuration is temporarily disabled for the demo.")
-            # param_schemas_dict = capabilities.get("parameter_schema") or {}
-            # algo_param_schema = param_schemas_dict.get(task, {}).get(algorithm)
-            # custom_overrides = render_parameter_editor(
-            #     algo_param_schema,
-            #     key_prefix=f"custom_param_{task}_{algorithm}"
-            # )
-else:
-    algorithm = None
-    preset = None
-    st.info("Lütfen önce geçerli bir görev seçin.")
+        st.info("Lütfen önce geçerli bir görev seçin.")
 
 # ==============================================================================
-# 5. HİPERPARAMETRE OPTİMİZASYONU (Tuning - Yalnızca Mode='tune' ve İlgili Tuning Konfigürasyonu Uygulanabilir İken Açılır)
+# 4. HİPERPARAMETRE OPTİMİZASYONU (Tuning - Yalnızca Mode='tune' İken Açılır)
 # ==============================================================================
 tuning_sampler = None
 tuning_pruner = None
@@ -299,75 +334,76 @@ tuning_applicable = (
 )
 
 if selected_mode == "tune" and tuning_applicable:
-    st.divider()
-    st.subheader("⚡ 3. Hiperparametre Optimizasyonu (Hyperparameter Tuning)")
-    st.caption("Mode='tune' seçildiği için Optuna arama uzayı ve deneme parametreleri aktif edildi.")
-    
-    tuning_caps = capabilities.get("tuning") or {}
-    if hasattr(tuning_caps, "model_dump"):
-        tuning_caps = tuning_caps.model_dump()
-    elif hasattr(tuning_caps, "dict"):
-        tuning_caps = tuning_caps.dict()
-    elif not isinstance(tuning_caps, dict):
-        tuning_caps = dict(tuning_caps)
-    
-    samplers = (
-        tuning_caps
-        .get("samplers", {})
-        .get(learning_type, [])
-    )
-    pruners = (
-        tuning_caps
-        .get("pruners", {})
-        .get(learning_type, [])
-    )
-    scoring_opts = (
-        tuning_caps
-        .get("objectives", {})
-        .get(task, [])
-    )
+    with st.container(border=True):
+        st.markdown("### ⚡ 3. Hiperparametre Optimizasyonu (Hyperparameter Tuning)")
+        st.caption("Mode='tune' seçildiği için Optuna arama uzayı, örnekleyici ve deneme parametreleri aktif edildi.")
         
-    t_col1, t_col2 = st.columns(2)
-    with t_col1:
-        if samplers:
-            tuning_sampler = st.selectbox(
-                "Arama Örnekleyicisi (Sampler)",
-                options=samplers,
-                format_func=lambda s: TUNING_SAMPLER_TR.get(s, s)
-            )
-        else:
-            tuning_sampler = None
-        tuning_trials = st.slider("Deneme Sayısı (n_trials)", min_value=3, max_value=100, value=10, step=1)
+        tuning_caps = capabilities.get("tuning") or {}
+        if hasattr(tuning_caps, "model_dump"):
+            tuning_caps = tuning_caps.model_dump()
+        elif hasattr(tuning_caps, "dict"):
+            tuning_caps = tuning_caps.dict()
+        elif not isinstance(tuning_caps, dict):
+            tuning_caps = dict(tuning_caps)
         
-    with t_col2:
-        if pruners:
-            tuning_pruner = st.selectbox(
-                "Budayıcı (Pruner)",
-                options=pruners,
-                format_func=lambda p: TUNING_PRUNER_TR.get(p, p)
-            )
-        else:
-            tuning_pruner = None
+        samplers = (
+            tuning_caps
+            .get("samplers", {})
+            .get(learning_type, [])
+        )
+        pruners = (
+            tuning_caps
+            .get("pruners", {})
+            .get(learning_type, [])
+        )
+        scoring_opts = (
+            tuning_caps
+            .get("objectives", {})
+            .get(task, [])
+        )
             
-        if scoring_opts:
-            tuning_scoring = st.selectbox(
-                "Optimizasyon Hedef Skoru (Scoring Metric)",
-                options=scoring_opts
-            )
-        else:
-            tuning_scoring = None
+        t_col1, t_col2 = st.columns(2)
+        with t_col1:
+            if samplers:
+                tuning_sampler = st.selectbox(
+                    "Arama Örnekleyicisi (Sampler)",
+                    options=samplers,
+                    format_func=lambda s: TUNING_SAMPLER_TR.get(s, s)
+                )
+            else:
+                tuning_sampler = None
+            tuning_trials = st.slider("Deneme Sayısı (n_trials)", min_value=3, max_value=100, value=10, step=1)
+            
+        with t_col2:
+            if pruners:
+                tuning_pruner = st.selectbox(
+                    "Budayıcı (Pruner)",
+                    options=pruners,
+                    format_func=lambda p: TUNING_PRUNER_TR.get(p, p)
+                )
+            else:
+                tuning_pruner = None
+                
+            if scoring_opts:
+                tuning_scoring = st.selectbox(
+                    "Optimizasyon Hedef Skoru (Scoring Metric)",
+                    options=scoring_opts
+                )
+            else:
+                tuning_scoring = None
 elif selected_mode == "tune" and not tuning_applicable:
     st.info(f"'{task}' görevi veya '{learning_type}' öğrenme türü için hiperparametre optimizasyonu konfigürasyonu desteklenmemektedir.")
 
-st.divider()
-
 # ==============================================================================
-# 6. ÖNİŞLEME VE DOĞRULAMA AYARLARI (İsteğe Bağlı)
+# 5. ÖNİŞLEME BORU HATTI (Preprocessing Pipeline)
 # ==============================================================================
 preprocess_payload = None
 
 if learning_type and task and is_config_applicable(capabilities, "preprocess", learning_type, task):
-    with st.expander("🛠️ Önişleme (Preprocessing)"):
+    with st.container(border=True):
+        st.markdown("### 🛠️ 3. Önişleme Boru Hattı (Preprocessing Pipeline)")
+        st.caption("Verinizi model eğitimine hazırlamak için eksik değer tamamlama, kategorik kodlama ve sayısal ölçeklendirme adımlarını yapılandırın.")
+
         prep_caps = capabilities.get("preprocessing", {}) if isinstance(capabilities, dict) else {}
         prep_defaults = prep_caps.get("defaults", {}) if isinstance(prep_caps, dict) else {}
 
@@ -383,193 +419,216 @@ if learning_type and task and is_config_applicable(capabilities, "preprocess", l
         elif not diag_defaults:
             st.warning(f"Önişleme varsayılanları eksik: {diag_defaults}")
 
-        # 1. Missing Value Configuration
-        st.markdown("##### Eksik Değer Yönetimi (Missing Value)")
-        c_m1, c_m2 = st.columns(2)
-        with c_m1:
-            ui_handle_missing = st.checkbox(
-                "Eksik Değerleri Yönet (handle_missing)",
-                value=bool(prep_defaults.get("handle_missing", True)),
-                key="prep_handle_missing"
-            )
-            ui_num_imputer = st.text_input(
-                "Sayısal Değer Tamamlama (numeric_imputer)",
-                value=str(prep_defaults.get("numeric_imputer", "") or ""),
-                key="prep_numeric_imputer"
-            )
-            num_fill_def = prep_defaults.get("numeric_fill_value")
-            if num_fill_def is not None:
-                ui_num_fill = st.number_input(
-                    "Sayısal Doldurma Değeri (numeric_fill_value)",
-                    value=float(num_fill_def),
-                    key="prep_numeric_fill_value"
+        tab_missing, tab_encoding, tab_scaling = st.tabs([
+            "🧩 Eksik Değer Yönetimi (Imputation)",
+            "🔤 Kategorik Kodlama (Encoding)",
+            "⚖️ Sayısal Ölçeklendirme (Scaling)"
+        ])
+
+        # Tab 1: Eksik Değer Yönetimi
+        with tab_missing:
+            c_m1, c_m2 = st.columns(2)
+            with c_m1:
+                ui_handle_missing = st.checkbox(
+                    "Eksik Değerleri Yönet (handle_missing)",
+                    value=bool(prep_defaults.get("handle_missing", True)),
+                    key="prep_handle_missing"
                 )
-            else:
-                ui_num_fill = None
-
-        with c_m2:
-            ui_cat_imputer = st.text_input(
-                "Kategorik Değer Tamamlama (categorical_imputer)",
-                value=str(prep_defaults.get("categorical_imputer", "") or ""),
-                key="prep_categorical_imputer"
-            )
-            ui_cat_fill = st.text_input(
-                "Kategorik Doldurma Değeri (categorical_fill_value)",
-                value=str(prep_defaults.get("categorical_fill_value", "") or ""),
-                key="prep_categorical_fill_value"
-            )
-
-        st.divider()
-
-        # 2. Encoding Configuration
-        st.markdown("##### Kategorik Kodlama (Encoding)")
-        c_e1, c_e2 = st.columns(2)
-        with c_e1:
-            ui_encoding = st.checkbox(
-                "Kategorik Kodlama Etkin (encoding)",
-                value=bool(prep_defaults.get("encoding", False)),
-                key="prep_encoding"
-            )
-
-            def_encode_method = prep_defaults.get("encode_method")
-            if encoding_methods:
-                def_enc_idx = encoding_methods.index(def_encode_method) if def_encode_method in encoding_methods else 0
-                ui_encode_method = st.selectbox(
-                    "Kodlama Yöntemi (encode_method)",
-                    options=encoding_methods,
-                    index=def_enc_idx,
-                    key="prep_encode_method"
+                ui_num_imputer = st.text_input(
+                    "Sayısal Değer Tamamlama (numeric_imputer)",
+                    value=str(prep_defaults.get("numeric_imputer", "") or ""),
+                    key="prep_numeric_imputer"
                 )
-            else:
-                if ui_encoding:
-                    diag_enc = validate_capability_path(capabilities, path=("preprocessing", "encoding_methods"), required=True, allow_empty=False)
-                    st.warning(f"Kodlama yöntemleri bulunamadı: {diag_enc}")
-                ui_encode_method = def_encode_method
-
-            ui_target_encoding = st.checkbox(
-                "Hedef Değişken Kodlama (targetEncoding)",
-                value=bool(prep_defaults.get("targetEncoding", False)),
-                key="prep_target_encoding"
-            )
-
-        with c_e2:
-            st.caption("**Kodlama Parametreleri (encoding_parameters)**")
-            ui_encoding_params = {}
-            raw_enc_params = prep_defaults.get("encoding_parameters", {})
-            # method-specific nested dictionary desteği: encoding_parameters[encode_method]
-            if isinstance(raw_enc_params, dict):
-                if ui_encode_method and isinstance(raw_enc_params.get(ui_encode_method), dict):
-                    selected_enc_params = raw_enc_params.get(ui_encode_method, {})
-                elif any(isinstance(v, dict) for v in raw_enc_params.values()):
-                    selected_enc_params = {}
+                num_fill_def = prep_defaults.get("numeric_fill_value")
+                if num_fill_def is not None:
+                    ui_num_fill = st.number_input(
+                        "Sayısal Doldurma Değeri (numeric_fill_value)",
+                        value=float(num_fill_def),
+                        key="prep_numeric_fill_value"
+                    )
                 else:
-                    selected_enc_params = raw_enc_params
+                    ui_num_fill = None
 
-                for p_k, p_v in selected_enc_params.items():
-                    p_label = p_k.replace("_", " ").title()
-                    field_key = f"prep_enc_{ui_encode_method}_{p_k}"
-                    if isinstance(p_v, bool):
-                        ui_encoding_params[p_k] = st.checkbox(
-                            f"{p_label} (`{p_k}`)",
-                            value=p_v,
-                            key=f"{field_key}_bool"
-                        )
-                    elif isinstance(p_v, int):
-                        ui_encoding_params[p_k] = st.number_input(
-                            f"{p_label} (`{p_k}`)",
-                            value=p_v,
-                            step=1,
-                            key=f"{field_key}_int"
-                        )
-                    elif isinstance(p_v, float):
-                        ui_encoding_params[p_k] = st.number_input(
-                            f"{p_label} (`{p_k}`)",
-                            value=p_v,
-                            step=0.01 if p_v < 1.0 else 1.0,
-                            format="%.4f" if p_v < 0.01 else "%.2f",
-                            key=f"{field_key}_float"
-                        )
-                    elif isinstance(p_v, str):
-                        ui_encoding_params[p_k] = st.text_input(
-                            f"{p_label} (`{p_k}`)",
-                            value=p_v,
-                            key=f"{field_key}_str"
-                        )
-                    else:
-                        ui_encoding_params[p_k] = p_v
-
-        st.divider()
-
-        # 3. Scaling Configuration
-        st.markdown("##### Sayısal Ölçeklendirme (Scaling)")
-        c_s1, c_s2 = st.columns(2)
-        with c_s1:
-            ui_scaling = st.checkbox(
-                "Sayısal Ölçeklendirme Etkin (scaling)",
-                value=bool(prep_defaults.get("scaling", False)),
-                key="prep_scaling"
-            )
-
-            def_scale_method = prep_defaults.get("scale_method")
-            if scaling_methods:
-                def_scale_idx = scaling_methods.index(def_scale_method) if def_scale_method in scaling_methods else 0
-                ui_scale_method = st.selectbox(
-                    "Ölçeklendirme Yöntemi (scale_method)",
-                    options=scaling_methods,
-                    index=def_scale_idx,
-                    key="prep_scale_method"
+            with c_m2:
+                ui_cat_imputer = st.text_input(
+                    "Kategorik Değer Tamamlama (categorical_imputer)",
+                    value=str(prep_defaults.get("categorical_imputer", "") or ""),
+                    key="prep_categorical_imputer"
                 )
-            else:
-                if ui_scaling:
-                    diag_scale = validate_capability_path(capabilities, path=("preprocessing", "scaling_methods"), required=True, allow_empty=False)
-                    st.warning(f"Ölçeklendirme yöntemleri bulunamadı: {diag_scale}")
-                ui_scale_method = def_scale_method
+                ui_cat_fill = st.text_input(
+                    "Kategorik Doldurma Değeri (categorical_fill_value)",
+                    value=str(prep_defaults.get("categorical_fill_value", "") or ""),
+                    key="prep_categorical_fill_value"
+                )
 
-        with c_s2:
-            st.caption("**Ölçeklendirme Parametreleri (scaling_parameters)**")
-            ui_scaling_params = {}
-            raw_scale_params = prep_defaults.get("scaling_parameters", {})
-            # method-specific nested dictionary desteği: scaling_parameters[scale_method]
-            if isinstance(raw_scale_params, dict):
-                if ui_scale_method and isinstance(raw_scale_params.get(ui_scale_method), dict):
-                    selected_scale_params = raw_scale_params.get(ui_scale_method, {})
-                elif any(isinstance(v, dict) for v in raw_scale_params.values()):
-                    selected_scale_params = {}
+        # Tab 2: Kategorik Kodlama
+        with tab_encoding:
+            c_e1, c_e2 = st.columns(2)
+            with c_e1:
+                ui_encoding = st.checkbox(
+                    "Kategorik Kodlama Etkin (encoding)",
+                    value=bool(prep_defaults.get("encoding", False)),
+                    key="prep_encoding"
+                )
+
+                def_encode_method = prep_defaults.get("encode_method")
+                if encoding_methods:
+                    def_enc_idx = encoding_methods.index(def_encode_method) if def_encode_method in encoding_methods else 0
+                    ui_encode_method = st.selectbox(
+                        "Kodlama Yöntemi (encode_method)",
+                        options=encoding_methods,
+                        index=def_enc_idx,
+                        key="prep_encode_method"
+                    )
                 else:
-                    selected_scale_params = raw_scale_params
+                    if ui_encoding:
+                        diag_enc = validate_capability_path(capabilities, path=("preprocessing", "encoding_methods"), required=True, allow_empty=False)
+                        st.warning(f"Kodlama yöntemleri bulunamadı: {diag_enc}")
+                    ui_encode_method = def_encode_method
 
-                for p_k, p_v in selected_scale_params.items():
-                    p_label = p_k.replace("_", " ").title()
-                    field_key = f"prep_scale_{ui_scale_method}_{p_k}"
-                    if isinstance(p_v, bool):
-                        ui_scaling_params[p_k] = st.checkbox(
-                            f"{p_label} (`{p_k}`)",
-                            value=p_v,
-                            key=f"{field_key}_bool"
-                        )
-                    elif isinstance(p_v, int):
-                        ui_scaling_params[p_k] = st.number_input(
-                            f"{p_label} (`{p_k}`)",
-                            value=p_v,
-                            step=1,
-                            key=f"{field_key}_int"
-                        )
-                    elif isinstance(p_v, float):
-                        ui_scaling_params[p_k] = st.number_input(
-                            f"{p_label} (`{p_k}`)",
-                            value=p_v,
-                            step=0.01 if p_v < 1.0 else 1.0,
-                            format="%.4f" if p_v < 0.01 else "%.2f",
-                            key=f"{field_key}_float"
-                        )
-                    elif isinstance(p_v, str):
-                        ui_scaling_params[p_k] = st.text_input(
-                            f"{p_label} (`{p_k}`)",
-                            value=p_v,
-                            key=f"{field_key}_str"
-                        )
+                ui_target_encoding = st.checkbox(
+                    "Hedef Değişken Kodlama (targetEncoding)",
+                    value=bool(prep_defaults.get("targetEncoding", False)),
+                    key="prep_target_encoding"
+                )
+
+                if ui_encode_method == "hashing":
+                    st.caption("💡 **Bilgi:** Hashing kodlama, yüksek kardinaliteli kategorik değişkenleri sabit boyutlu bir öznitelik uzayına indirger.")
+
+            with c_e2:
+                st.markdown("**Kodlama Parametreleri (`encoding_parameters`)**")
+                ui_encoding_params = {}
+                raw_enc_params = prep_defaults.get("encoding_parameters", {})
+                
+                # method-specific nested dictionary desteği: encoding_parameters[encode_method]
+                if isinstance(raw_enc_params, dict):
+                    if ui_encode_method and isinstance(raw_enc_params.get(ui_encode_method), dict):
+                        selected_enc_params = raw_enc_params.get(ui_encode_method, {})
+                    elif any(isinstance(v, dict) for v in raw_enc_params.values()):
+                        selected_enc_params = {}
                     else:
-                        ui_scaling_params[p_k] = p_v
+                        selected_enc_params = raw_enc_params
+
+                    if not selected_enc_params:
+                        st.caption("Bu yöntem için yapılandırılabilir ek parametre bulunmamaktadır.")
+
+                    for p_k, p_v in selected_enc_params.items():
+                        p_label = p_k.replace("_", " ").title()
+                        field_key = f"prep_enc_{ui_encode_method}_{p_k}"
+                        help_text = PARAM_HELP_TR.get(p_k)
+                        if isinstance(p_v, bool):
+                            ui_encoding_params[p_k] = st.checkbox(
+                                f"{p_label} (`{p_k}`)",
+                                value=p_v,
+                                key=f"{field_key}_bool",
+                                help=help_text
+                            )
+                        elif isinstance(p_v, int):
+                            ui_encoding_params[p_k] = st.number_input(
+                                f"{p_label} (`{p_k}`)",
+                                value=p_v,
+                                step=1,
+                                key=f"{field_key}_int",
+                                help=help_text
+                            )
+                        elif isinstance(p_v, float):
+                            ui_encoding_params[p_k] = st.number_input(
+                                f"{p_label} (`{p_k}`)",
+                                value=p_v,
+                                step=0.01 if p_v < 1.0 else 1.0,
+                                format="%.4f" if p_v < 0.01 else "%.2f",
+                                key=f"{field_key}_float",
+                                help=help_text
+                            )
+                        elif isinstance(p_v, str):
+                            ui_encoding_params[p_k] = st.text_input(
+                                f"{p_label} (`{p_k}`)",
+                                value=p_v,
+                                key=f"{field_key}_str",
+                                help=help_text
+                            )
+                        else:
+                            ui_encoding_params[p_k] = p_v
+
+        # Tab 3: Sayısal Ölçeklendirme
+        with tab_scaling:
+            c_s1, c_s2 = st.columns(2)
+            with c_s1:
+                ui_scaling = st.checkbox(
+                    "Sayısal Ölçeklendirme Etkin (scaling)",
+                    value=bool(prep_defaults.get("scaling", False)),
+                    key="prep_scaling"
+                )
+
+                def_scale_method = prep_defaults.get("scale_method")
+                if scaling_methods:
+                    def_scale_idx = scaling_methods.index(def_scale_method) if def_scale_method in scaling_methods else 0
+                    ui_scale_method = st.selectbox(
+                        "Ölçeklendirme Yöntemi (scale_method)",
+                        options=scaling_methods,
+                        index=def_scale_idx,
+                        key="prep_scale_method"
+                    )
+                else:
+                    if ui_scaling:
+                        diag_scale = validate_capability_path(capabilities, path=("preprocessing", "scaling_methods"), required=True, allow_empty=False)
+                        st.warning(f"Ölçeklendirme yöntemleri bulunamadı: {diag_scale}")
+                    ui_scale_method = def_scale_method
+
+            with c_s2:
+                st.markdown("**Ölçeklendirme Parametreleri (`scaling_parameters`)**")
+                ui_scaling_params = {}
+                raw_scale_params = prep_defaults.get("scaling_parameters", {})
+                
+                # method-specific nested dictionary desteği: scaling_parameters[scale_method]
+                if isinstance(raw_scale_params, dict):
+                    if ui_scale_method and isinstance(raw_scale_params.get(ui_scale_method), dict):
+                        selected_scale_params = raw_scale_params.get(ui_scale_method, {})
+                    elif any(isinstance(v, dict) for v in raw_scale_params.values()):
+                        selected_scale_params = {}
+                    else:
+                        selected_scale_params = raw_scale_params
+
+                    if not selected_scale_params:
+                        st.caption("Bu yöntem için yapılandırılabilir ek parametre bulunmamaktadır.")
+
+                    for p_k, p_v in selected_scale_params.items():
+                        p_label = p_k.replace("_", " ").title()
+                        field_key = f"prep_scale_{ui_scale_method}_{p_k}"
+                        help_text = PARAM_HELP_TR.get(p_k)
+                        if isinstance(p_v, bool):
+                            ui_scaling_params[p_k] = st.checkbox(
+                                f"{p_label} (`{p_k}`)",
+                                value=p_v,
+                                key=f"{field_key}_bool",
+                                help=help_text
+                            )
+                        elif isinstance(p_v, int):
+                            ui_scaling_params[p_k] = st.number_input(
+                                f"{p_label} (`{p_k}`)",
+                                value=p_v,
+                                step=1,
+                                key=f"{field_key}_int",
+                                help=help_text
+                            )
+                        elif isinstance(p_v, float):
+                            ui_scaling_params[p_k] = st.number_input(
+                                f"{p_label} (`{p_k}`)",
+                                value=p_v,
+                                step=0.01 if p_v < 1.0 else 1.0,
+                                format="%.4f" if p_v < 0.01 else "%.2f",
+                                key=f"{field_key}_float",
+                                help=help_text
+                            )
+                        elif isinstance(p_v, str):
+                            ui_scaling_params[p_k] = st.text_input(
+                                f"{p_label} (`{p_k}`)",
+                                value=p_v,
+                                key=f"{field_key}_str",
+                                help=help_text
+                            )
+                        else:
+                            ui_scaling_params[p_k] = p_v
 
         # Check if at least one preprocessing feature is enabled / configured
         has_prep_configured = (
@@ -597,11 +656,17 @@ if learning_type and task and is_config_applicable(capabilities, "preprocess", l
                 "scaling_parameters": ui_scaling_params
             }
 
+# ==============================================================================
+# 6. VERİ BÖLÜMLEME VE DOĞRULAMA (Data Splitting & Validation)
+# ==============================================================================
 val_strategy = None
 data_split_params = {}
 
 if learning_type and task and is_config_applicable(capabilities, "data_split", learning_type, task):
-    with st.expander("📐 Veri Bölümleme ve Doğrulama (Data Splitting & Validation)"):
+    with st.container(border=True):
+        st.markdown("### 📐 4. Veri Bölümleme & Çapraz Doğrulama")
+        st.caption("Modelin değerlendirilmesi için eğitim-test kümesi ayrımı veya K-Fold stratejisini belirleyin.")
+
         split_meta = capabilities.get("data_split", {}) if isinstance(capabilities, dict) else {}
         val_options = split_meta.get("methods", []) if isinstance(split_meta, dict) else []
         split_params = split_meta.get("parameters", {}) if isinstance(split_meta, dict) else {}
@@ -622,27 +687,39 @@ if learning_type and task and is_config_applicable(capabilities, "data_split", l
             for p_name, p_default in split_params.items():
                 p_label = p_name.replace("_", " ").title()
                 field_key = f"ds_{val_strategy}_{p_name}"
+                help_text = PARAM_HELP_TR.get(p_name)
 
-                # 1. Special-case: test_size -> slider (0.0 - 1.0, step=0.05)
+                # 1. Special-case: test_size -> slider + synchronized metric ratio
                 if p_name == "test_size":
                     def_val = float(p_default) if p_default is not None else 0.2
-                    val = st.slider(
-                        label=f"{p_label} (`{p_name}`)",
-                        min_value=0.0,
-                        max_value=1.0,
-                        value=def_val,
-                        step=0.05,
-                        key=f"{field_key}_slider"
-                    )
+                    col_ts1, col_ts2 = st.columns([3, 1])
+                    with col_ts1:
+                        val = st.slider(
+                            label=f"{p_label} (`{p_name}`)",
+                            min_value=0.0,
+                            max_value=1.0,
+                            value=def_val,
+                            step=0.05,
+                            key=f"{field_key}_slider",
+                            help=help_text
+                        )
+                    with col_ts2:
+                        train_pct = int(round((1.0 - val) * 100))
+                        test_pct = int(round(val * 100))
+                        st.metric(
+                            label="Eğitim / Test",
+                            value=f"%{train_pct} / %{test_pct}"
+                        )
                     data_split_params[p_name] = float(val)
 
-                # 2. Special-case: random_state -> text_input without +/- stepper controls
+                # 2. Special-case: random_state -> text_input without stepper
                 elif p_name == "random_state":
                     str_default = str(p_default) if p_default is not None else "42"
                     val_str = st.text_input(
                         label=f"{p_label} (`{p_name}`)",
                         value=str_default,
-                        key=f"{field_key}_text"
+                        key=f"{field_key}_text",
+                        help=help_text
                     )
                     try:
                         data_split_params[p_name] = int(val_str.strip())
@@ -655,7 +732,8 @@ if learning_type and task and is_config_applicable(capabilities, "data_split", l
                     val = st.checkbox(
                         label=f"{p_label} (`{p_name}`)",
                         value=p_default,
-                        key=f"{field_key}_bool"
+                        key=f"{field_key}_bool",
+                        help=help_text
                     )
                     data_split_params[p_name] = bool(val)
 
@@ -665,7 +743,8 @@ if learning_type and task and is_config_applicable(capabilities, "data_split", l
                         label=f"{p_label} (`{p_name}`)",
                         value=p_default,
                         step=1,
-                        key=f"{field_key}_int"
+                        key=f"{field_key}_int",
+                        help=help_text
                     )
                     data_split_params[p_name] = int(val)
 
@@ -676,7 +755,8 @@ if learning_type and task and is_config_applicable(capabilities, "data_split", l
                         value=p_default,
                         step=0.01 if p_default < 1.0 else 1.0,
                         format="%.4f" if p_default < 0.01 else "%.2f",
-                        key=f"{field_key}_float"
+                        key=f"{field_key}_float",
+                        help=help_text
                     )
                     data_split_params[p_name] = float(val)
 
@@ -685,7 +765,8 @@ if learning_type and task and is_config_applicable(capabilities, "data_split", l
                     val = st.text_input(
                         label=f"{p_label} (`{p_name}`)",
                         value=p_default,
-                        key=f"{field_key}_str"
+                        key=f"{field_key}_str",
+                        help=help_text
                     )
                     data_split_params[p_name] = str(val)
 
@@ -736,12 +817,64 @@ if data_split_payload is not None:
 if tuning_payload is not None:
     req_payload["tuning"] = tuning_payload
 
-with st.expander("Gönderilecek Deney Payload'u"):
+# ==============================================================================
+# 7. DENEY YAPILANDIRMA ÖZETİ VE GÖNDERİM
+# ==============================================================================
+with st.container(border=True):
+    st.markdown("### 📋 Deney Yapılandırma Özeti")
+    st.caption("Oluşturulacak deneyin yapılandırma parametrelerini onaylayın.")
+
+    s_col1, s_col2, s_col3, s_col4 = st.columns(4)
+    with s_col1:
+        st.markdown("**📁 Veri & Görev**")
+        ds_display = selected_ds_meta.get('display_name') or selected_ds_meta.get('name')
+        st.write(f"• **Veri:** {ds_display}")
+        st.write(f"• **Görev:** {TASK_NAMES_TR.get(task, task)}")
+        st.write(f"• **Öğrenme:** {LEARNING_TYPES_TR.get(learning_type, learning_type)}")
+
+    with s_col2:
+        st.markdown("**🤖 Model & Mimari**")
+        algo_name_display = get_algorithm_display_name(algorithm, capabilities) if algorithm else "-"
+        st.write(f"• **Model:** {algo_name_display}")
+        st.write(f"• **Hazır Ayar:** {PRESET_NAMES_TR.get(preset, preset) if preset else '-'}")
+
+    with s_col3:
+        st.markdown("**⚙️ Mod & Doğrulama**")
+        st.write(f"• **Mod:** {MODE_NAMES_TR.get(selected_mode, selected_mode)}")
+        if val_strategy:
+            st.write(f"• **Bölümleme:** {VAL_TR.get(val_strategy, val_strategy)}")
+            if "test_size" in data_split_params:
+                ts_pct = int(round(float(data_split_params['test_size']) * 100))
+                st.write(f"• **Test Kümesi:** %{ts_pct}")
+        else:
+            st.write("• **Bölümleme:** Belirtilmedi")
+
+    with s_col4:
+        st.markdown("**🛠️ Önişleme Adımları**")
+        prep_status_items = []
+        if preprocess_payload:
+            if preprocess_payload.get("handle_missing"):
+                prep_status_items.append("Eksik Değer Yönetimi")
+            if preprocess_payload.get("encoding"):
+                enc_m = preprocess_payload.get("encode_method") or "aktif"
+                prep_status_items.append(f"Encoding ({enc_m})")
+            if preprocess_payload.get("scaling"):
+                scale_m = preprocess_payload.get("scale_method") or "aktif"
+                prep_status_items.append(f"Scaling ({scale_m})")
+        if prep_status_items:
+            for item in prep_status_items:
+                st.write(f"• {item}")
+        else:
+            st.write("• Standart / Ham Veri")
+
+# Developer Payload Expander
+with st.expander("🔍 Geliştirici & API İstek Yükü (Canonical JSON Payload)", expanded=False):
+    st.caption("AKSIS Core Engine tarafına (`POST /api/v1/experiments`) iletilecek resmi JSON veri yükü:")
     st.json(req_payload)
 
 st.divider()
 
-submitted = st.button("🚀 Deneyi Oluştur (Create Experiment)", use_container_width=True, type="primary")
+submitted = st.button("🚀 Deneyi Oluştur ve Başlat (Create Experiment)", use_container_width=True, type="primary")
 
 if submitted:
     if not task or not algorithm:
