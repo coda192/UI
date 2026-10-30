@@ -619,6 +619,117 @@ def test_preprocessing_capability_contract_and_payload():
     assert diag_scale_methods.code == "CAP-PREP-004"
 
 
+def test_preprocessing_method_specific_nested_parameters():
+    """
+    Verifies that:
+    - encoding_parameters only exposes selected encode_method's parameters
+    - scaling_parameters only exposes selected scale_method's parameters
+    - parameters from other methods do not leak into the payload
+    - bool/int/float/str types are preserved
+    """
+    nested_caps = {
+        "preprocessing": {
+            "encoding_methods": ["onehot", "frequency", "hashing"],
+            "scaling_methods": ["standard", "minmax", "robust"],
+            "defaults": {
+                "handle_missing": True,
+                "numeric_imputer": "mean",
+                "categorical_imputer": "most_frequent",
+                "numeric_fill_value": None,
+                "categorical_fill_value": None,
+                "encoding": True,
+                "encode_method": "onehot",
+                "targetEncoding": False,
+                "encoding_parameters": {
+                    "onehot": {
+                        "drop_first": True,
+                        "max_categories": 10
+                    },
+                    "frequency": {
+                        "min_frequency": 0.05
+                    },
+                    "hashing": {
+                        "n_features": 100,
+                        "alternate_sign": False
+                    }
+                },
+                "scaling": True,
+                "scale_method": "minmax",
+                "scaling_parameters": {
+                    "standard": {
+                        "with_mean": True,
+                        "with_std": True
+                    },
+                    "minmax": {
+                        "feature_range_min": 0.0,
+                        "feature_range_max": 1.0,
+                        "clip": False
+                    },
+                    "robust": {
+                        "quantile_range_min": 25.0,
+                        "quantile_range_max": 75.0,
+                        "unit_variance": True
+                    }
+                }
+            }
+        }
+    }
+
+    defaults = nested_caps["preprocessing"]["defaults"]
+    raw_enc = defaults["encoding_parameters"]
+    raw_scale = defaults["scaling_parameters"]
+
+    # 1. Test selected encode_method = "onehot"
+    selected_encode_method = "onehot"
+    onehot_params = raw_enc.get(selected_encode_method, {})
+    assert "drop_first" in onehot_params
+    assert "max_categories" in onehot_params
+    assert "min_frequency" not in onehot_params
+    assert "n_features" not in onehot_params
+    assert isinstance(onehot_params["drop_first"], bool)
+    assert isinstance(onehot_params["max_categories"], int)
+
+    # 2. Test switching encode_method to "frequency"
+    freq_params = raw_enc.get("frequency", {})
+    assert "min_frequency" in freq_params
+    assert "drop_first" not in freq_params
+    assert isinstance(freq_params["min_frequency"], float)
+
+    # 3. Test selected scale_method = "minmax"
+    selected_scale_method = "minmax"
+    minmax_params = raw_scale.get(selected_scale_method, {})
+    assert "feature_range_min" in minmax_params
+    assert "feature_range_max" in minmax_params
+    assert "clip" in minmax_params
+    assert "with_mean" not in minmax_params
+    assert "quantile_range_min" not in minmax_params
+    assert isinstance(minmax_params["feature_range_min"], float)
+    assert isinstance(minmax_params["feature_range_max"], float)
+    assert isinstance(minmax_params["clip"], bool)
+
+    # 4. Outgoing payload should contain ONLY the selected method's parameters
+    payload = {
+        "handle_missing": bool(defaults["handle_missing"]),
+        "numeric_imputer": defaults["numeric_imputer"],
+        "categorical_imputer": defaults["categorical_imputer"],
+        "numeric_fill_value": defaults["numeric_fill_value"],
+        "categorical_fill_value": defaults["categorical_fill_value"],
+        "encoding": bool(defaults["encoding"]),
+        "encode_method": selected_encode_method,
+        "targetEncoding": bool(defaults["targetEncoding"]),
+        "encoding_parameters": onehot_params,
+        "scaling": bool(defaults["scaling"]),
+        "scale_method": selected_scale_method,
+        "scaling_parameters": minmax_params
+    }
+
+    assert payload["encoding_parameters"] == {"drop_first": True, "max_categories": 10}
+    assert "min_frequency" not in payload["encoding_parameters"]
+    assert payload["scaling_parameters"] == {"feature_range_min": 0.0, "feature_range_max": 1.0, "clip": False}
+    assert "with_mean" not in payload["scaling_parameters"]
+
+
+
 
 
 

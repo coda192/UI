@@ -455,22 +455,31 @@ if learning_type and task and is_config_applicable(capabilities, "preprocess", l
         with c_e2:
             st.caption("**Kodlama Parametreleri (encoding_parameters)**")
             ui_encoding_params = {}
-            def_enc_params = prep_defaults.get("encoding_parameters", {})
-            if isinstance(def_enc_params, dict):
-                for p_k, p_v in def_enc_params.items():
+            raw_enc_params = prep_defaults.get("encoding_parameters", {})
+            # method-specific nested dictionary desteği: encoding_parameters[encode_method]
+            if isinstance(raw_enc_params, dict):
+                if ui_encode_method and isinstance(raw_enc_params.get(ui_encode_method), dict):
+                    selected_enc_params = raw_enc_params.get(ui_encode_method, {})
+                elif any(isinstance(v, dict) for v in raw_enc_params.values()):
+                    selected_enc_params = {}
+                else:
+                    selected_enc_params = raw_enc_params
+
+                for p_k, p_v in selected_enc_params.items():
                     p_label = p_k.replace("_", " ").title()
+                    field_key = f"prep_enc_{ui_encode_method}_{p_k}"
                     if isinstance(p_v, bool):
                         ui_encoding_params[p_k] = st.checkbox(
                             f"{p_label} (`{p_k}`)",
                             value=p_v,
-                            key=f"prep_enc_param_{p_k}"
+                            key=f"{field_key}_bool"
                         )
                     elif isinstance(p_v, int):
                         ui_encoding_params[p_k] = st.number_input(
                             f"{p_label} (`{p_k}`)",
                             value=p_v,
                             step=1,
-                            key=f"prep_enc_param_{p_k}"
+                            key=f"{field_key}_int"
                         )
                     elif isinstance(p_v, float):
                         ui_encoding_params[p_k] = st.number_input(
@@ -478,13 +487,13 @@ if learning_type and task and is_config_applicable(capabilities, "preprocess", l
                             value=p_v,
                             step=0.01 if p_v < 1.0 else 1.0,
                             format="%.4f" if p_v < 0.01 else "%.2f",
-                            key=f"prep_enc_param_{p_k}"
+                            key=f"{field_key}_float"
                         )
                     elif isinstance(p_v, str):
                         ui_encoding_params[p_k] = st.text_input(
                             f"{p_label} (`{p_k}`)",
                             value=p_v,
-                            key=f"prep_enc_param_{p_k}"
+                            key=f"{field_key}_str"
                         )
                     else:
                         ui_encoding_params[p_k] = p_v
@@ -519,22 +528,31 @@ if learning_type and task and is_config_applicable(capabilities, "preprocess", l
         with c_s2:
             st.caption("**Ölçeklendirme Parametreleri (scaling_parameters)**")
             ui_scaling_params = {}
-            def_scale_params = prep_defaults.get("scaling_parameters", {})
-            if isinstance(def_scale_params, dict):
-                for p_k, p_v in def_scale_params.items():
+            raw_scale_params = prep_defaults.get("scaling_parameters", {})
+            # method-specific nested dictionary desteği: scaling_parameters[scale_method]
+            if isinstance(raw_scale_params, dict):
+                if ui_scale_method and isinstance(raw_scale_params.get(ui_scale_method), dict):
+                    selected_scale_params = raw_scale_params.get(ui_scale_method, {})
+                elif any(isinstance(v, dict) for v in raw_scale_params.values()):
+                    selected_scale_params = {}
+                else:
+                    selected_scale_params = raw_scale_params
+
+                for p_k, p_v in selected_scale_params.items():
                     p_label = p_k.replace("_", " ").title()
+                    field_key = f"prep_scale_{ui_scale_method}_{p_k}"
                     if isinstance(p_v, bool):
                         ui_scaling_params[p_k] = st.checkbox(
                             f"{p_label} (`{p_k}`)",
                             value=p_v,
-                            key=f"prep_scale_param_{p_k}"
+                            key=f"{field_key}_bool"
                         )
                     elif isinstance(p_v, int):
                         ui_scaling_params[p_k] = st.number_input(
                             f"{p_label} (`{p_k}`)",
                             value=p_v,
                             step=1,
-                            key=f"prep_scale_param_{p_k}"
+                            key=f"{field_key}_int"
                         )
                     elif isinstance(p_v, float):
                         ui_scaling_params[p_k] = st.number_input(
@@ -542,13 +560,13 @@ if learning_type and task and is_config_applicable(capabilities, "preprocess", l
                             value=p_v,
                             step=0.01 if p_v < 1.0 else 1.0,
                             format="%.4f" if p_v < 0.01 else "%.2f",
-                            key=f"prep_scale_param_{p_k}"
+                            key=f"{field_key}_float"
                         )
                     elif isinstance(p_v, str):
                         ui_scaling_params[p_k] = st.text_input(
                             f"{p_label} (`{p_k}`)",
                             value=p_v,
-                            key=f"prep_scale_param_{p_k}"
+                            key=f"{field_key}_str"
                         )
                     else:
                         ui_scaling_params[p_k] = p_v
