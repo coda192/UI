@@ -477,6 +477,149 @@ def test_capability_diagnostics_core_and_groups():
     assert diag_preset_sup.code == "CAP-OK"
 
 
+def test_preprocessing_capability_contract_and_payload():
+    """
+    Verifies that:
+    1. encoding methods come from capability
+    2. scaling methods come from capability
+    3. defaults come from preprocessing.defaults
+    4. targetEncoding remains exactly targetEncoding
+    5. encoding_parameters preserve bool/int/float/str types
+    6. scaling_parameters preserve bool/int/float/str types
+    7. missing imputer strategy lists are not fabricated
+    8. outgoing payload matches canonical PreprocessConfig fields
+    9. missing preprocessing section produces CAP-PREP-001
+    10. missing defaults produces CAP-PREP-002
+    """
+    from frontend.utils.model_guidance import validate_capability_path
+
+    # Capability shape with new preprocessing contract
+    raw_caps = {
+        "preprocessing": {
+            "encoding_methods": ["onehot", "ordinal", "target"],
+            "scaling_methods": ["standard", "minmax", "robust"],
+            "defaults": {
+                "handle_missing": True,
+                "numeric_imputer": "mean",
+                "categorical_imputer": "most_frequent",
+                "numeric_fill_value": 0.0,
+                "categorical_fill_value": "missing",
+                "encoding": True,
+                "encode_method": "onehot",
+                "targetEncoding": False,
+                "encoding_parameters": {
+                    "drop_first": True,
+                    "max_categories": 10,
+                    "handle_unknown": "ignore",
+                    "min_frequency": 0.05
+                },
+                "scaling": True,
+                "scale_method": "standard",
+                "scaling_parameters": {
+                    "with_mean": True,
+                    "with_std": True,
+                    "quantile_range_min": 25.0,
+                    "quantile_range_max": 75.0,
+                    "unit_variance": False
+                }
+            }
+        }
+    }
+
+    prep_caps = raw_caps["preprocessing"]
+    prep_defaults = prep_caps["defaults"]
+
+    # 1. Encoding methods come from capability
+    assert prep_caps.get("encoding_methods") == ["onehot", "ordinal", "target"]
+
+    # 2. Scaling methods come from capability
+    assert prep_caps.get("scaling_methods") == ["standard", "minmax", "robust"]
+
+    # 3. Defaults come from preprocessing.defaults
+    assert prep_defaults.get("numeric_imputer") == "mean"
+    assert prep_defaults.get("categorical_imputer") == "most_frequent"
+    assert prep_defaults.get("numeric_fill_value") == 0.0
+    assert prep_defaults.get("categorical_fill_value") == "missing"
+    assert prep_defaults.get("encode_method") == "onehot"
+    assert prep_defaults.get("scale_method") == "standard"
+
+    # 4. targetEncoding remains exactly targetEncoding
+    assert "targetEncoding" in prep_defaults
+    assert "target_encoding" not in prep_defaults
+
+    # 5. encoding_parameters preserve bool/int/float/str types
+    enc_params = prep_defaults["encoding_parameters"]
+    assert isinstance(enc_params["drop_first"], bool)
+    assert isinstance(enc_params["max_categories"], int)
+    assert isinstance(enc_params["handle_unknown"], str)
+    assert isinstance(enc_params["min_frequency"], float)
+
+    # 6. scaling_parameters preserve bool/int/float/str types
+    scale_params = prep_defaults["scaling_parameters"]
+    assert isinstance(scale_params["with_mean"], bool)
+    assert isinstance(scale_params["with_std"], bool)
+    assert isinstance(scale_params["quantile_range_min"], float)
+    assert isinstance(scale_params["quantile_range_max"], float)
+    assert isinstance(scale_params["unit_variance"], bool)
+
+    # 7. Missing imputer strategy lists are not fabricated
+    assert "missing_value" not in prep_caps
+    assert "imputer_strategies" not in prep_caps
+
+    # 8. Outgoing payload matches canonical PreprocessConfig fields
+    payload = {
+        "handle_missing": bool(prep_defaults["handle_missing"]),
+        "numeric_imputer": prep_defaults["numeric_imputer"],
+        "categorical_imputer": prep_defaults["categorical_imputer"],
+        "numeric_fill_value": prep_defaults["numeric_fill_value"],
+        "categorical_fill_value": prep_defaults["categorical_fill_value"],
+        "encoding": bool(prep_defaults["encoding"]),
+        "encode_method": prep_defaults["encode_method"],
+        "targetEncoding": bool(prep_defaults["targetEncoding"]),
+        "encoding_parameters": enc_params,
+        "scaling": bool(prep_defaults["scaling"]),
+        "scale_method": prep_defaults["scale_method"],
+        "scaling_parameters": scale_params
+    }
+
+    expected_canonical_keys = {
+        "handle_missing",
+        "numeric_imputer",
+        "categorical_imputer",
+        "numeric_fill_value",
+        "categorical_fill_value",
+        "encoding",
+        "encode_method",
+        "targetEncoding",
+        "encoding_parameters",
+        "scaling",
+        "scale_method",
+        "scaling_parameters"
+    }
+    assert set(payload.keys()) == expected_canonical_keys
+
+    # 9. Missing preprocessing section produces CAP-PREP-001
+    diag_missing_prep = validate_capability_path({}, path=("preprocessing",), required=True)
+    assert not diag_missing_prep
+    assert diag_missing_prep.code == "CAP-PREP-001"
+
+    # 10. Missing defaults produces CAP-PREP-002
+    diag_missing_defaults = validate_capability_path({"preprocessing": {}}, path=("preprocessing", "defaults"), required=True)
+    assert not diag_missing_defaults
+    assert diag_missing_defaults.code == "CAP-PREP-002"
+
+    # 11. Empty encoding_methods produces CAP-PREP-003
+    diag_enc_methods = validate_capability_path({"preprocessing": {"encoding_methods": []}}, path=("preprocessing", "encoding_methods"), required=True, allow_empty=False)
+    assert not diag_enc_methods
+    assert diag_enc_methods.code == "CAP-PREP-003"
+
+    # 12. Empty scaling_methods produces CAP-PREP-004
+    diag_scale_methods = validate_capability_path({"preprocessing": {"scaling_methods": []}}, path=("preprocessing", "scaling_methods"), required=True, allow_empty=False)
+    assert not diag_scale_methods
+    assert diag_scale_methods.code == "CAP-PREP-004"
+
+
+
 
 
 

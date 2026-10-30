@@ -44,7 +44,7 @@ class CapabilityResponse(BaseModel):
         default_factory=TuningCapabilities
     )
 
-    preprocessing: Dict[str, List[str]] = Field(
+    preprocessing: Dict[str, Any] = Field(
         default_factory=dict
     )
 

@@ -364,37 +364,220 @@ st.divider()
 # ==============================================================================
 # 6. ÖNİŞLEME VE DOĞRULAMA AYARLARI (İsteğe Bağlı)
 # ==============================================================================
-missing_val = "none"
-encoding = "none"
-scaling = "none"
+preprocess_payload = None
 
 if learning_type and task and is_config_applicable(capabilities, "preprocess", learning_type, task):
     with st.expander("🛠️ Önişleme (Preprocessing)"):
-        prep_strats = capabilities.get("preprocessing", {})
-        
-        missing_options = ["none"] + prep_strats.get("missing_value", [])
-        encoding_options = ["none"] + prep_strats.get("encoding", [])
-        scaling_options = ["none"] + prep_strats.get("scaling", [])
-        
-        c_p1, c_p2, c_p3 = st.columns(3)
-        with c_p1:
-            missing_val = st.selectbox(
-                "Eksik Değer Yönetimi (Imputer)", 
-                missing_options,
-                format_func=lambda x: PREP_TR.get(x, x)
+        prep_caps = capabilities.get("preprocessing", {}) if isinstance(capabilities, dict) else {}
+        prep_defaults = prep_caps.get("defaults", {}) if isinstance(prep_caps, dict) else {}
+
+        encoding_methods = prep_caps.get("encoding_methods", []) if isinstance(prep_caps, dict) else []
+        scaling_methods = prep_caps.get("scaling_methods", []) if isinstance(prep_caps, dict) else []
+
+        # Diagnostics validation
+        diag_prep = validate_capability_path(capabilities, path=("preprocessing",), required=True, allow_empty=False)
+        diag_defaults = validate_capability_path(capabilities, path=("preprocessing", "defaults"), required=True, allow_empty=False)
+
+        if not diag_prep:
+            st.warning(f"Önişleme yetenek tanımı eksik: {diag_prep}")
+        elif not diag_defaults:
+            st.warning(f"Önişleme varsayılanları eksik: {diag_defaults}")
+
+        # 1. Missing Value Configuration
+        st.markdown("##### Eksik Değer Yönetimi (Missing Value)")
+        c_m1, c_m2 = st.columns(2)
+        with c_m1:
+            ui_handle_missing = st.checkbox(
+                "Eksik Değerleri Yönet (handle_missing)",
+                value=bool(prep_defaults.get("handle_missing", True)),
+                key="prep_handle_missing"
             )
-        with c_p2:
-            encoding = st.selectbox(
-                "Kategorik Kodlama (Encoding)", 
-                encoding_options,
-                format_func=lambda x: PREP_TR.get(x, x)
+            ui_num_imputer = st.text_input(
+                "Sayısal Değer Tamamlama (numeric_imputer)",
+                value=str(prep_defaults.get("numeric_imputer", "") or ""),
+                key="prep_numeric_imputer"
             )
-        with c_p3:
-            scaling = st.selectbox(
-                "Sayısal Ölçeklendirme (Scaling)", 
-                scaling_options,
-                format_func=lambda x: PREP_TR.get(x, x)
+            num_fill_def = prep_defaults.get("numeric_fill_value")
+            if num_fill_def is not None:
+                ui_num_fill = st.number_input(
+                    "Sayısal Doldurma Değeri (numeric_fill_value)",
+                    value=float(num_fill_def),
+                    key="prep_numeric_fill_value"
+                )
+            else:
+                ui_num_fill = None
+
+        with c_m2:
+            ui_cat_imputer = st.text_input(
+                "Kategorik Değer Tamamlama (categorical_imputer)",
+                value=str(prep_defaults.get("categorical_imputer", "") or ""),
+                key="prep_categorical_imputer"
             )
+            ui_cat_fill = st.text_input(
+                "Kategorik Doldurma Değeri (categorical_fill_value)",
+                value=str(prep_defaults.get("categorical_fill_value", "") or ""),
+                key="prep_categorical_fill_value"
+            )
+
+        st.divider()
+
+        # 2. Encoding Configuration
+        st.markdown("##### Kategorik Kodlama (Encoding)")
+        c_e1, c_e2 = st.columns(2)
+        with c_e1:
+            ui_encoding = st.checkbox(
+                "Kategorik Kodlama Etkin (encoding)",
+                value=bool(prep_defaults.get("encoding", False)),
+                key="prep_encoding"
+            )
+
+            def_encode_method = prep_defaults.get("encode_method")
+            if encoding_methods:
+                def_enc_idx = encoding_methods.index(def_encode_method) if def_encode_method in encoding_methods else 0
+                ui_encode_method = st.selectbox(
+                    "Kodlama Yöntemi (encode_method)",
+                    options=encoding_methods,
+                    index=def_enc_idx,
+                    key="prep_encode_method"
+                )
+            else:
+                if ui_encoding:
+                    diag_enc = validate_capability_path(capabilities, path=("preprocessing", "encoding_methods"), required=True, allow_empty=False)
+                    st.warning(f"Kodlama yöntemleri bulunamadı: {diag_enc}")
+                ui_encode_method = def_encode_method
+
+            ui_target_encoding = st.checkbox(
+                "Hedef Değişken Kodlama (targetEncoding)",
+                value=bool(prep_defaults.get("targetEncoding", False)),
+                key="prep_target_encoding"
+            )
+
+        with c_e2:
+            st.caption("**Kodlama Parametreleri (encoding_parameters)**")
+            ui_encoding_params = {}
+            def_enc_params = prep_defaults.get("encoding_parameters", {})
+            if isinstance(def_enc_params, dict):
+                for p_k, p_v in def_enc_params.items():
+                    p_label = p_k.replace("_", " ").title()
+                    if isinstance(p_v, bool):
+                        ui_encoding_params[p_k] = st.checkbox(
+                            f"{p_label} (`{p_k}`)",
+                            value=p_v,
+                            key=f"prep_enc_param_{p_k}"
+                        )
+                    elif isinstance(p_v, int):
+                        ui_encoding_params[p_k] = st.number_input(
+                            f"{p_label} (`{p_k}`)",
+                            value=p_v,
+                            step=1,
+                            key=f"prep_enc_param_{p_k}"
+                        )
+                    elif isinstance(p_v, float):
+                        ui_encoding_params[p_k] = st.number_input(
+                            f"{p_label} (`{p_k}`)",
+                            value=p_v,
+                            step=0.01 if p_v < 1.0 else 1.0,
+                            format="%.4f" if p_v < 0.01 else "%.2f",
+                            key=f"prep_enc_param_{p_k}"
+                        )
+                    elif isinstance(p_v, str):
+                        ui_encoding_params[p_k] = st.text_input(
+                            f"{p_label} (`{p_k}`)",
+                            value=p_v,
+                            key=f"prep_enc_param_{p_k}"
+                        )
+                    else:
+                        ui_encoding_params[p_k] = p_v
+
+        st.divider()
+
+        # 3. Scaling Configuration
+        st.markdown("##### Sayısal Ölçeklendirme (Scaling)")
+        c_s1, c_s2 = st.columns(2)
+        with c_s1:
+            ui_scaling = st.checkbox(
+                "Sayısal Ölçeklendirme Etkin (scaling)",
+                value=bool(prep_defaults.get("scaling", False)),
+                key="prep_scaling"
+            )
+
+            def_scale_method = prep_defaults.get("scale_method")
+            if scaling_methods:
+                def_scale_idx = scaling_methods.index(def_scale_method) if def_scale_method in scaling_methods else 0
+                ui_scale_method = st.selectbox(
+                    "Ölçeklendirme Yöntemi (scale_method)",
+                    options=scaling_methods,
+                    index=def_scale_idx,
+                    key="prep_scale_method"
+                )
+            else:
+                if ui_scaling:
+                    diag_scale = validate_capability_path(capabilities, path=("preprocessing", "scaling_methods"), required=True, allow_empty=False)
+                    st.warning(f"Ölçeklendirme yöntemleri bulunamadı: {diag_scale}")
+                ui_scale_method = def_scale_method
+
+        with c_s2:
+            st.caption("**Ölçeklendirme Parametreleri (scaling_parameters)**")
+            ui_scaling_params = {}
+            def_scale_params = prep_defaults.get("scaling_parameters", {})
+            if isinstance(def_scale_params, dict):
+                for p_k, p_v in def_scale_params.items():
+                    p_label = p_k.replace("_", " ").title()
+                    if isinstance(p_v, bool):
+                        ui_scaling_params[p_k] = st.checkbox(
+                            f"{p_label} (`{p_k}`)",
+                            value=p_v,
+                            key=f"prep_scale_param_{p_k}"
+                        )
+                    elif isinstance(p_v, int):
+                        ui_scaling_params[p_k] = st.number_input(
+                            f"{p_label} (`{p_k}`)",
+                            value=p_v,
+                            step=1,
+                            key=f"prep_scale_param_{p_k}"
+                        )
+                    elif isinstance(p_v, float):
+                        ui_scaling_params[p_k] = st.number_input(
+                            f"{p_label} (`{p_k}`)",
+                            value=p_v,
+                            step=0.01 if p_v < 1.0 else 1.0,
+                            format="%.4f" if p_v < 0.01 else "%.2f",
+                            key=f"prep_scale_param_{p_k}"
+                        )
+                    elif isinstance(p_v, str):
+                        ui_scaling_params[p_k] = st.text_input(
+                            f"{p_label} (`{p_k}`)",
+                            value=p_v,
+                            key=f"prep_scale_param_{p_k}"
+                        )
+                    else:
+                        ui_scaling_params[p_k] = p_v
+
+        # Check if at least one preprocessing feature is enabled / configured
+        has_prep_configured = (
+            ui_handle_missing
+            or bool(ui_numeric_imputer)
+            or bool(ui_categorical_imputer)
+            or ui_encoding
+            or ui_target_encoding
+            or ui_scaling
+        )
+
+        if has_prep_configured:
+            preprocess_payload = {
+                "handle_missing": bool(ui_handle_missing),
+                "numeric_imputer": ui_num_imputer if ui_num_imputer else None,
+                "categorical_imputer": ui_cat_imputer if ui_cat_imputer else None,
+                "numeric_fill_value": ui_num_fill,
+                "categorical_fill_value": ui_cat_fill if ui_cat_fill else None,
+                "encoding": bool(ui_encoding),
+                "encode_method": ui_encode_method if ui_encoding else None,
+                "targetEncoding": bool(ui_target_encoding),
+                "encoding_parameters": ui_encoding_params,
+                "scaling": bool(ui_scaling),
+                "scale_method": ui_scale_method if ui_scaling else None,
+                "scaling_parameters": ui_scaling_params
+            }
 
 val_strategy = None
 data_split_params = {}
@@ -491,21 +674,6 @@ if learning_type and task and is_config_applicable(capabilities, "data_split", l
                 # 7. Other unknown types
                 else:
                     data_split_params[p_name] = p_default
-
-# Preprocess konfigürasyonu
-preprocess_payload = None
-if missing_val != "none" or encoding != "none" or scaling != "none":
-    preprocess_payload = {
-        "handle_missing": (missing_val != "none"),
-        "numeric_imputer": None if missing_val == "none" else missing_val,
-        "categorical_imputer": None if missing_val == "none" else missing_val,
-        "encoding": (encoding != "none"),
-        "encode_method": None if encoding == "none" else encoding,
-        "encoding_parameters": {},
-        "scaling": (scaling != "none"),
-        "scale_method": None if scaling == "none" else scaling,
-        "scaling_parameters": {}
-    }
 
 # Data split konfigürasyonu
 data_split_payload = None
