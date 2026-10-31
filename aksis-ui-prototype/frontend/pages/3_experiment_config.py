@@ -320,12 +320,98 @@ with st.container(border=True):
         st.info("Lütfen önce geçerli bir görev seçin.")
 
 # ==============================================================================
+# 3. HİPERPARAMETRE OPTİMİZASYONU (Tuning - Yalnızca Mode='tune' İken Açılır/Kapanır)
+# ==============================================================================
+tuning_sampler = None
+tuning_pruner = None
+tuning_trials = 10
+tuning_scoring = None
+
+tuning_applicable = (
+    learning_type is not None 
+    and task is not None 
+    and is_config_applicable(capabilities, f"{learning_type}_tuning", learning_type, task)
+)
+
+if selected_mode == "tune" and tuning_applicable:
+    with st.expander("⚡ 3. Hiperparametre Optimizasyonu (Optuna Hyperparameter Tuning)", expanded=True):
+        st.caption("Mode='tune' seçildiği için Optuna arama uzayı, örnekleyici ve deneme parametreleri aktif edildi.")
+        
+        tuning_caps = capabilities.get("tuning") or {}
+        if hasattr(tuning_caps, "model_dump"):
+            tuning_caps = tuning_caps.model_dump()
+        elif hasattr(tuning_caps, "dict"):
+            tuning_caps = tuning_caps.dict()
+        elif not isinstance(tuning_caps, dict):
+            tuning_caps = dict(tuning_caps)
+        
+        samplers = (
+            tuning_caps
+            .get("samplers", {})
+            .get(learning_type, [])
+        )
+        pruners = (
+            tuning_caps
+            .get("pruners", {})
+            .get(learning_type, [])
+        )
+        scoring_opts = (
+            tuning_caps
+            .get("objectives", {})
+            .get(task, [])
+        )
+            
+        t_col1, t_col2 = st.columns(2)
+        with t_col1:
+            if samplers:
+                tuning_sampler = st.selectbox(
+                    "Arama Örnekleyicisi (Sampler)",
+                    options=samplers,
+                    format_func=lambda s: TUNING_SAMPLER_TR.get(s, s)
+                )
+            else:
+                tuning_sampler = None
+            tuning_trials = st.slider("Deneme Sayısı (n_trials)", min_value=3, max_value=100, value=10, step=1)
+            
+        with t_col2:
+            if pruners:
+                tuning_pruner = st.selectbox(
+                    "Budayıcı (Pruner)",
+                    options=pruners,
+                    format_func=lambda p: TUNING_PRUNER_TR.get(p, p)
+                )
+            else:
+                tuning_pruner = None
+                
+            if scoring_opts:
+                tuning_scoring = st.selectbox(
+                    "Optimizasyon Hedef Skoru (Scoring Metric)",
+                    options=scoring_opts
+                )
+            else:
+                tuning_scoring = None
+elif selected_mode == "tune" and not tuning_applicable:
+    st.info(f"'{task}' görevi veya '{learning_type}' öğrenme türü için hiperparametre optimizasyonu konfigürasyonu desteklenmemektedir.")
+
+# Tuning konfigürasyonu
+tuning_payload = None
+if selected_mode == "tune" and tuning_applicable:
+    tuning_payload = {
+        "enabled": True,
+        "n_trials": tuning_trials,
+        "sampler": tuning_sampler,
+        "pruner": tuning_pruner,
+        "metric": tuning_scoring,
+        "parameters": {}
+    }
+
+# ==============================================================================
 # 4. ÖNİŞLEME BORU HATTI (Preprocessing Pipeline - Açılır/Kapanır)
 # ==============================================================================
 preprocess_payload = None
 
 if learning_type and task and is_config_applicable(capabilities, "preprocess", learning_type, task):
-    with st.expander("🛠️ 3. Önişleme Boru Hattı (Preprocessing Pipeline)", expanded=False):
+    with st.expander("🛠️ 4. Önişleme Boru Hattı (Preprocessing Pipeline)", expanded=False):
         st.caption("Verinizi model eğitimine hazırlamak için eksik değer tamamlama, kategorik kodlama ve sayısal ölçeklendirme adımlarını yapılandırın.")
 
         prep_caps = capabilities.get("preprocessing", {}) if isinstance(capabilities, dict) else {}
@@ -616,7 +702,7 @@ val_strategy = None
 data_split_params = {}
 
 if learning_type and task and is_config_applicable(capabilities, "data_split", learning_type, task):
-    with st.expander("📐 4. Veri Bölümleme & Çapraz Doğrulama", expanded=False):
+    with st.expander("📐 5. Veri Bölümleme & Çapraz Doğrulama", expanded=False):
         st.caption("Modelin değerlendirilmesi için eğitim-test kümesi ayrımı veya K-Fold stratejisini belirleyin.")
 
         split_meta = capabilities.get("data_split", {}) if isinstance(capabilities, dict) else {}
@@ -732,92 +818,6 @@ if val_strategy:
     data_split_payload = {
         "method": val_strategy,
         "parameters": data_split_params
-    }
-
-# ==============================================================================
-# 6. HİPERPARAMETRE OPTİMİZASYONU (Tuning - Yalnızca Mode='tune' İken Açılır/Kapanır)
-# ==============================================================================
-tuning_sampler = None
-tuning_pruner = None
-tuning_trials = 10
-tuning_scoring = None
-
-tuning_applicable = (
-    learning_type is not None 
-    and task is not None 
-    and is_config_applicable(capabilities, f"{learning_type}_tuning", learning_type, task)
-)
-
-if selected_mode == "tune" and tuning_applicable:
-    with st.expander("⚡ 5. Hiperparametre Optimizasyonu (Optuna Hyperparameter Tuning)", expanded=True):
-        st.caption("Mode='tune' seçildiği için Optuna arama uzayı, örnekleyici ve deneme parametreleri aktif edildi.")
-        
-        tuning_caps = capabilities.get("tuning") or {}
-        if hasattr(tuning_caps, "model_dump"):
-            tuning_caps = tuning_caps.model_dump()
-        elif hasattr(tuning_caps, "dict"):
-            tuning_caps = tuning_caps.dict()
-        elif not isinstance(tuning_caps, dict):
-            tuning_caps = dict(tuning_caps)
-        
-        samplers = (
-            tuning_caps
-            .get("samplers", {})
-            .get(learning_type, [])
-        )
-        pruners = (
-            tuning_caps
-            .get("pruners", {})
-            .get(learning_type, [])
-        )
-        scoring_opts = (
-            tuning_caps
-            .get("objectives", {})
-            .get(task, [])
-        )
-            
-        t_col1, t_col2 = st.columns(2)
-        with t_col1:
-            if samplers:
-                tuning_sampler = st.selectbox(
-                    "Arama Örnekleyicisi (Sampler)",
-                    options=samplers,
-                    format_func=lambda s: TUNING_SAMPLER_TR.get(s, s)
-                )
-            else:
-                tuning_sampler = None
-            tuning_trials = st.slider("Deneme Sayısı (n_trials)", min_value=3, max_value=100, value=10, step=1)
-            
-        with t_col2:
-            if pruners:
-                tuning_pruner = st.selectbox(
-                    "Budayıcı (Pruner)",
-                    options=pruners,
-                    format_func=lambda p: TUNING_PRUNER_TR.get(p, p)
-                )
-            else:
-                tuning_pruner = None
-                
-            if scoring_opts:
-                tuning_scoring = st.selectbox(
-                    "Optimizasyon Hedef Skoru (Scoring Metric)",
-                    options=scoring_opts
-                )
-            else:
-                tuning_scoring = None
-elif selected_mode == "tune" and not tuning_applicable:
-    st.info(f"'{task}' görevi veya '{learning_type}' öğrenme türü için hiperparametre optimizasyonu konfigürasyonu desteklenmemektedir.")
-
-# Tuning konfigürasyonu
-tuning_payload = None
-if selected_mode == "tune" and tuning_applicable:
-    tuning_payload = {
-        "enabled": True,
-        "n_trials": tuning_trials,
-        "sampler": tuning_sampler,
-        "pruner": tuning_pruner,
-        "metric": tuning_scoring,
-        "parameters": {}
     }
 
 # Model parameters (sadece preset == "custom" iken overrides ekle, aksi halde {})
