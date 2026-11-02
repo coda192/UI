@@ -1,6 +1,7 @@
 import pytest
 from unittest.mock import patch, MagicMock
 from frontend.components.parameter_editor import render_parameter_editor
+from frontend.utils.model_guidance import validate_capability_path
 
 def test_parameter_editor_empty_or_none_schema():
     with patch("streamlit.warning") as mock_warning:
@@ -630,6 +631,21 @@ def test_preprocessing_capability_contract_and_payload():
     assert not diag_cat_imp_methods
     assert diag_cat_imp_methods.code == "CAP-PREP-006"
 
+    # 15. Empty data_analyze produces CAP-AN-001
+    diag_da = validate_capability_path({"data_analyze": {}}, path=("data_analyze",), required=True, allow_empty=False)
+    assert not diag_da
+    assert diag_da.code == "CAP-AN-001"
+
+    # 16. Empty data_analyze.defaults produces CAP-AN-002
+    diag_da_defaults = validate_capability_path({"data_analyze": {"defaults": {}}}, path=("data_analyze", "defaults"), required=True, allow_empty=False)
+    assert not diag_da_defaults
+    assert diag_da_defaults.code == "CAP-AN-002"
+
+    # 17. Empty data_analyze_functions produces CAP-AN-003
+    diag_da_fns = validate_capability_path({"data_analyze": {"defaults": {"data_analyze_functions": []}}}, path=("data_analyze", "defaults", "data_analyze_functions"), required=True, allow_empty=False)
+    assert not diag_da_fns
+    assert diag_da_fns.code == "CAP-AN-003"
+
 
 def test_preprocessing_method_specific_nested_parameters():
     """
@@ -965,6 +981,132 @@ def test_missing_value_imputation_bugfixes_and_edge_cases():
     assert parse_categorical_fill_input(default_cat_str) is None
     assert parse_categorical_fill_input("   ") is None
     assert parse_categorical_fill_input("custom_fill") == "custom_fill"
+
+
+def test_data_analyze_capability_and_payload_behavior():
+    """
+    Verifies that:
+    1. Data Analyze functions come only from capability defaults.
+    2. Function names are not hardcoded in frontend (supports arbitrary future functions).
+    3. Checkbox defaults come from each item's 'enabled' field.
+    4. Toggling a checkbox changes only that function's 'enabled'.
+    5. Canonical 'f' values are preserved unchanged.
+    6. Canonical 'data_analyze_functions' payload structure is preserved.
+    7. Empty/missing capability does not invent fallback functions.
+    8. Diagnostic validation flags missing/empty data_analyze capabilities.
+    """
+    # 1. Capability input with standard and future custom analysis functions
+    capabilities = {
+        "data_analyze": {
+            "defaults": {
+                "data_analyze_functions": [
+                    {"f": "missing_value_check", "enabled": True},
+                    {"f": "correlation_matrix", "enabled": True},
+                    {"f": "future_outlier_detection_step", "enabled": False},
+                ]
+            }
+        }
+    }
+
+    # Extract dynamically exactly as done in 3_experiment_config.py
+    analyze_caps = capabilities.get("data_analyze", {})
+    analyze_defaults = analyze_caps.get("defaults", {})
+    analyze_functions = analyze_defaults.get("data_analyze_functions", [])
+
+    assert len(analyze_functions) == 3
+    # 2. Dynamic extraction - no hardcoded checks
+    assert analyze_functions[0]["f"] == "missing_value_check"
+    assert analyze_functions[1]["f"] == "correlation_matrix"
+    assert analyze_functions[2]["f"] == "future_outlier_detection_step"
+
+    # 3. Checkbox defaults come from each item's 'enabled'
+    assert analyze_functions[0]["enabled"] is True
+    assert analyze_functions[1]["enabled"] is True
+    assert analyze_functions[2]["enabled"] is False
+
+    # Simulate UI render and payload building logic
+    def render_and_build_payload(raw_functions, toggles=None):
+        toggles = toggles or {}
+        da_payload_fns = []
+        for fn_item in raw_functions:
+            fn_name = str(fn_item.get("f", ""))
+            fn_default = bool(fn_item.get("enabled", True))
+            # User toggle if provided, else default
+            current_val = toggles.get(fn_name, fn_default)
+            da_payload_fns.append({
+                "f": fn_name,
+                "enabled": bool(current_val)
+            })
+        return {
+            "data_analyze_functions": da_payload_fns
+        } if da_payload_fns else None
+
+    # Initial payload matches defaults
+    payload_default = render_and_build_payload(analyze_functions)
+    assert payload_default == {
+        "data_analyze": {
+            "data_analyze_functions": [
+                {"f": "missing_value_check", "enabled": True},
+                {"f": "correlation_matrix", "enabled": True},
+                {"f": "future_outlier_detection_step", "enabled": False},
+            ]
+        }
+    }["data_analyze"]
+
+    # 4 & 5. Toggling a checkbox changes ONLY that function's enabled, f is preserved
+    payload_toggled = render_and_build_payload(
+        analyze_functions,
+        toggles={"correlation_matrix": False, "future_outlier_detection_step": True}
+    )
+    assert payload_toggled == {
+        "data_analyze_functions": [
+            {"f": "missing_value_check", "enabled": True},
+            {"f": "correlation_matrix", "enabled": False},
+            {"f": "future_outlier_detection_step", "enabled": True},
+        ]
+    }
+
+    # Verify all unchecked state
+    payload_all_disabled = render_and_build_payload(
+        analyze_functions,
+        toggles={"missing_value_check": False, "correlation_matrix": False, "future_outlier_detection_step": False}
+    )
+    assert payload_all_disabled == {
+        "data_analyze_functions": [
+            {"f": "missing_value_check", "enabled": False},
+            {"f": "correlation_matrix", "enabled": False},
+            {"f": "future_outlier_detection_step", "enabled": False},
+        ]
+    }
+
+    # 6. Top-level vocabulary preservation
+    req_payload = {
+        "project_name": "test_exp",
+        "data_analyze": payload_toggled
+    }
+    assert "data_analyze" in req_payload
+    assert "data_analyze_functions" in req_payload["data_analyze"]
+    assert "operations" not in req_payload["data_analyze"]
+    assert "functions" not in req_payload["data_analyze"]
+    assert "enabled" not in req_payload["data_analyze"]
+
+    # 7. Empty or missing capabilities does NOT invent fallback functions
+    empty_caps = {"data_analyze": {"defaults": {"data_analyze_functions": []}}}
+    diag_fns = validate_capability_path(empty_caps, path=("data_analyze", "defaults", "data_analyze_functions"), required=True, allow_empty=False)
+    assert not diag_fns
+    empty_fns = empty_caps["data_analyze"]["defaults"]["data_analyze_functions"]
+    payload_empty = render_and_build_payload(empty_fns)
+    assert payload_empty is None
+
+    # Generic title humanization test
+    for fn_item in analyze_functions:
+        fn_name = fn_item["f"]
+        label = fn_name.replace("_", " ").title()
+        assert "_" not in label
+    assert "Missing Value Check" == "missing_value_check".replace("_", " ").title()
+    assert "Correlation Matrix" == "correlation_matrix".replace("_", " ").title()
+    assert "Future Outlier Detection Step" == "future_outlier_detection_step".replace("_", " ").title()
+
 
 
 

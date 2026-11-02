@@ -894,6 +894,56 @@ if val_strategy:
         "parameters": data_split_params
     }
 
+# ==============================================================================
+# 6. VERİ ANALİZİ (Data Analysis - Açılır/Kapanır)
+# ==============================================================================
+data_analyze_payload = None
+
+if learning_type and task and is_config_applicable(capabilities, "data_analyze", learning_type, task):
+    with st.expander("📊 6. Veri Analizi (Data Analysis)", expanded=False):
+        st.caption("Veri seti üzerinde modelleme öncesinde çalıştırılacak analiz fonksiyonlarını yapılandırın.")
+
+        analyze_caps = capabilities.get("data_analyze", {}) if isinstance(capabilities, dict) else {}
+        analyze_defaults = analyze_caps.get("defaults", {}) if isinstance(analyze_caps, dict) else {}
+        analyze_functions = analyze_defaults.get("data_analyze_functions", []) if isinstance(analyze_defaults, dict) else []
+
+        diag_da = validate_capability_path(capabilities, path=("data_analyze",), required=True, allow_empty=False)
+        diag_da_defaults = validate_capability_path(capabilities, path=("data_analyze", "defaults"), required=True, allow_empty=False)
+        diag_da_fns = validate_capability_path(capabilities, path=("data_analyze", "defaults", "data_analyze_functions"), required=True, allow_empty=False)
+
+        if not diag_da:
+            st.warning(f"Veri analizi yetenek tanımı eksik: {diag_da}")
+        elif not diag_da_defaults:
+            st.warning(f"Veri analizi varsayılanları eksik: {diag_da_defaults}")
+        elif not diag_da_fns:
+            st.warning(f"Veri analizi fonksiyonları bulunamadı: {diag_da_fns}")
+        else:
+            da_payload_fns = []
+            cols = st.columns(min(len(analyze_functions), 2) if len(analyze_functions) > 1 else 1)
+            for idx, fn_item in enumerate(analyze_functions):
+                if not isinstance(fn_item, dict):
+                    continue
+                fn_name = str(fn_item.get("f", ""))
+                fn_enabled_default = bool(fn_item.get("enabled", True))
+                fn_label = fn_name.replace("_", " ").title()
+
+                with cols[idx % len(cols)]:
+                    val = st.checkbox(
+                        fn_label,
+                        value=fn_enabled_default,
+                        key=f"data_analyze_fn_{fn_name}",
+                        help=f"`{fn_name}` analiz adımını çalıştır."
+                    )
+                    da_payload_fns.append({
+                        "f": fn_name,
+                        "enabled": bool(val)
+                    })
+
+            if da_payload_fns:
+                data_analyze_payload = {
+                    "data_analyze_functions": da_payload_fns
+                }
+
 # Model parameters (sadece preset == "custom" iken overrides ekle, aksi halde {})
 final_parameters = custom_overrides if (task and algorithm and preset == "custom") else {}
 
@@ -916,6 +966,8 @@ if data_split_payload is not None:
     req_payload["data_split"] = data_split_payload
 if tuning_payload is not None:
     req_payload["tuning"] = tuning_payload
+if data_analyze_payload is not None:
+    req_payload["data_analyze"] = data_analyze_payload
 
 # ==============================================================================
 # 7. DENEY YAPILANDIRMA ÖZETİ VE GÖNDERİM

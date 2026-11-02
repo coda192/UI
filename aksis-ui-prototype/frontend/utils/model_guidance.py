@@ -251,6 +251,16 @@ KNOWN_ERROR_CODES: Dict[tuple, Dict[str, str]] = {
         "empty": "CAP-AN-001",
         "invalid": "CAP-AN-001"
     },
+    ("data_analyze", "defaults"): {
+        "missing": "CAP-AN-002",
+        "empty": "CAP-AN-002",
+        "invalid": "CAP-AN-002"
+    },
+    ("data_analyze", "defaults", "data_analyze_functions"): {
+        "missing": "CAP-AN-003",
+        "empty": "CAP-AN-003",
+        "invalid": "CAP-AN-003"
+    },
     # Evaluation
     ("evaluation",): {
         "missing": "CAP-EVAL-001",

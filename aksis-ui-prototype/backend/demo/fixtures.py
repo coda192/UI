@@ -537,7 +537,14 @@ CAPABILITIES = CapabilityResponse(
             }
         }
     },
-    data_analyze={},
+    data_analyze={
+        "defaults": {
+            "data_analyze_functions": [
+                {"f": "missing_value_check", "enabled": True},
+                {"f": "correlation_matrix", "enabled": True},
+            ]
+        }
+    },
     evaluation={
         "capabilities": ["confusion_matrix", "feature_importance", "residuals", "anomaly_distribution"]
     },
