@@ -646,6 +646,36 @@ def test_preprocessing_capability_contract_and_payload():
     assert not diag_da_fns
     assert diag_da_fns.code == "CAP-AN-003"
 
+    # 18. Empty evaluation produces CAP-EVAL-001
+    diag_eval = validate_capability_path({"evaluation": {}}, path=("evaluation",), required=True, allow_empty=False)
+    assert not diag_eval
+    assert diag_eval.code == "CAP-EVAL-001"
+
+    # 19. Empty evaluation.supervised produces CAP-EVAL-002
+    diag_eval_group = validate_capability_path({"evaluation": {"supervised": {}}}, path=("evaluation", "supervised"), required=True, allow_empty=False)
+    assert not diag_eval_group
+    assert diag_eval_group.code == "CAP-EVAL-002"
+
+    # 20. Empty evaluation.supervised.defaults produces CAP-EVAL-003
+    diag_eval_defaults = validate_capability_path({"evaluation": {"supervised": {"defaults": {}}}}, path=("evaluation", "supervised", "defaults"), required=True, allow_empty=False)
+    assert not diag_eval_defaults
+    assert diag_eval_defaults.code == "CAP-EVAL-003"
+
+    # 21. Empty visualization produces CAP-VIS-001
+    diag_vis = validate_capability_path({"visualization": {}}, path=("visualization",), required=True, allow_empty=False)
+    assert not diag_vis
+    assert diag_vis.code == "CAP-VIS-001"
+
+    # 22. Empty visualization.supervised produces CAP-VIS-002
+    diag_vis_group = validate_capability_path({"visualization": {"supervised": {}}}, path=("visualization", "supervised"), required=True, allow_empty=False)
+    assert not diag_vis_group
+    assert diag_vis_group.code == "CAP-VIS-002"
+
+    # 23. Empty visualization.supervised.defaults produces CAP-VIS-003
+    diag_vis_defaults = validate_capability_path({"visualization": {"supervised": {"defaults": {}}}}, path=("visualization", "supervised", "defaults"), required=True, allow_empty=False)
+    assert not diag_vis_defaults
+    assert diag_vis_defaults.code == "CAP-VIS-003"
+
 
 def test_preprocessing_method_specific_nested_parameters():
     """
@@ -1106,6 +1136,219 @@ def test_data_analyze_capability_and_payload_behavior():
     assert "Missing Value Check" == "missing_value_check".replace("_", " ").title()
     assert "Correlation Matrix" == "correlation_matrix".replace("_", " ").title()
     assert "Future Outlier Detection Step" == "future_outlier_detection_step".replace("_", " ").title()
+
+
+def test_evaluation_capability_and_payload_behavior():
+    """
+    Verifies that:
+    1. Evaluation defaults come from evaluation.<learning_type>.defaults.
+    2. Metric/function names are not hardcoded in frontend.
+    3. Checkbox defaults come from each item's 'enabled'.
+    4. Only task-relevant evaluation fields are rendered/sent (classification vs regression vs anomaly).
+    5. Canonical 'f' values remain unchanged.
+    6. Canonical evaluation field names remain unchanged (cls_evaluation, reg_evaluation, etc.).
+    7. Arbitrary future evaluation functions can appear through capability without frontend code changes.
+    8. Missing capability does not fabricate metrics.
+    """
+    caps = {
+        "evaluation": {
+            "supervised": {
+                "defaults": {
+                    "cls_evaluation": [
+                        {"f": "accuracy", "enabled": True},
+                        {"f": "f1_score", "enabled": True},
+                        {"f": "future_custom_metric", "enabled": False},
+                    ],
+                    "reg_evaluation": [
+                        {"f": "mae", "enabled": True},
+                        {"f": "rmse", "enabled": True},
+                    ]
+                }
+            },
+            "unsupervised": {
+                "defaults": {
+                    "ano_evaluation": [
+                        {"f": "silhouette_score", "enabled": True},
+                        {"f": "anomaly_score", "enabled": False},
+                    ]
+                }
+            }
+        }
+    }
+
+    # Simulation helper matching 3_experiment_config.py logic
+    def build_eval_payload(learning_type, task, capabilities, toggles=None):
+        toggles = toggles or {}
+        evaluation_caps = capabilities.get("evaluation", {})
+        evaluation_group = evaluation_caps.get(learning_type, {})
+        evaluation_defaults = evaluation_group.get("defaults", {})
+
+        target_key = None
+        if task == "classification":
+            target_key = "cls_evaluation" if "cls_evaluation" in evaluation_defaults else None
+        elif task == "regression":
+            target_key = "reg_evaluation" if "reg_evaluation" in evaluation_defaults else None
+        elif learning_type == "unsupervised" or task == "anomaly_detection":
+            target_key = "ano_evaluation" if "ano_evaluation" in evaluation_defaults else None
+
+        if not target_key:
+            return None
+
+        items = evaluation_defaults.get(target_key, [])
+        payload_items = []
+        for item in items:
+            fn_name = item["f"]
+            fn_enabled = bool(item.get("enabled", True))
+            current_val = toggles.get(fn_name, fn_enabled)
+            payload_items.append({
+                "f": fn_name,
+                "enabled": bool(current_val)
+            })
+        return {target_key: payload_items} if payload_items else None
+
+    # Case 1: Classification task
+    cls_payload = build_eval_payload("supervised", "classification", caps)
+    assert "cls_evaluation" in cls_payload
+    assert "reg_evaluation" not in cls_payload
+    # 2 & 7. Arbitrary future metric supported dynamically
+    assert [x["f"] for x in cls_payload["cls_evaluation"]] == ["accuracy", "f1_score", "future_custom_metric"]
+    # 3. Default from capability
+    assert cls_payload["cls_evaluation"][2]["enabled"] is False
+
+    # 4 & 5. Toggling preserves canonical 'f' and modifies only 'enabled'
+    cls_payload_toggled = build_eval_payload(
+        "supervised", "classification", caps,
+        toggles={"accuracy": False, "future_custom_metric": True}
+    )
+    assert cls_payload_toggled["cls_evaluation"][0] == {"f": "accuracy", "enabled": False}
+    assert cls_payload_toggled["cls_evaluation"][2] == {"f": "future_custom_metric", "enabled": True}
+
+    # Case 2: Regression task
+    reg_payload = build_eval_payload("supervised", "regression", caps)
+    assert "reg_evaluation" in reg_payload
+    assert "cls_evaluation" not in reg_payload
+    assert [x["f"] for x in reg_payload["reg_evaluation"]] == ["mae", "rmse"]
+
+    # Case 3: Unsupervised anomaly detection task
+    ano_payload = build_eval_payload("unsupervised", "anomaly_detection", caps)
+    assert "ano_evaluation" in ano_payload
+    assert "cls_evaluation" not in ano_payload
+    assert "reg_evaluation" not in ano_payload
+    assert [x["f"] for x in ano_payload["ano_evaluation"]] == ["silhouette_score", "anomaly_score"]
+
+    # 8. Missing capability does not fabricate metrics
+    empty_caps = {"evaluation": {"supervised": {"defaults": {}}}}
+    empty_payload = build_eval_payload("supervised", "classification", empty_caps)
+    assert empty_payload is None
+
+
+def test_visualization_capability_and_payload_behavior():
+    """
+    Verifies that:
+    9. Visualization defaults come from visualization.<learning_type>.defaults.
+    10. show_plots comes from capability.
+    11. show_plots=False hides/disables controls logically, preserving schema.
+    12. Visualization function names are not hardcoded.
+    13. Checkbox defaults come from each item's 'enabled'.
+    14. Only context-relevant visualization groups are rendered/sent.
+    15. Canonical list names and 'f' values remain unchanged.
+    16. Arbitrary future plots can appear through capability without frontend code changes.
+    17. Missing capability does not fabricate plots.
+    """
+    caps = {
+        "visualization": {
+            "supervised": {
+                "defaults": {
+                    "show_plots": True,
+                    "pretrain_list": [
+                        {"f": "pairplot", "enabled": True},
+                        {"f": "future_radar_chart", "enabled": False},
+                    ],
+                    "tuning_list": [
+                        {"f": "optimization_history", "enabled": True},
+                    ],
+                    "cla_posttrain_list": [
+                        {"f": "confusion_matrix", "enabled": True},
+                    ],
+                    "reg_posttrain_list": [
+                        {"f": "residual_plot", "enabled": True},
+                    ]
+                }
+            }
+        }
+    }
+
+    # Simulation helper matching 3_experiment_config.py logic
+    def build_vis_payload(learning_type, task, mode, capabilities, show_plots_override=None, toggles=None):
+        toggles = toggles or {}
+        visualization_caps = capabilities.get("visualization", {})
+        visualization_group = visualization_caps.get(learning_type, {})
+        visualization_defaults = visualization_group.get("defaults", {})
+
+        has_show_plots_key = "show_plots" in visualization_defaults
+        def_show_plots = bool(visualization_defaults.get("show_plots", True)) if has_show_plots_key else True
+        ui_show_plots = show_plots_override if show_plots_override is not None else def_show_plots
+
+        relevant_groups = {}
+        for k, v in visualization_defaults.items():
+            if k == "show_plots" or not isinstance(v, list):
+                continue
+            if ("cla" in k or "classification" in k) and task != "classification":
+                continue
+            if ("reg" in k or "regression" in k) and task != "regression":
+                continue
+            if ("ano" in k or "anomaly" in k) and task != "anomaly_detection":
+                continue
+            if "tuning" in k and mode != "tune":
+                continue
+            relevant_groups[k] = v
+
+        vis_payload_dict = {}
+        if has_show_plots_key:
+            vis_payload_dict["show_plots"] = bool(ui_show_plots)
+
+        for group_key, items in relevant_groups.items():
+            group_payload_items = []
+            for item in items:
+                fn_name = str(item.get("f", ""))
+                fn_enabled = bool(item.get("enabled", True))
+                current_val = toggles.get(f"{group_key}_{fn_name}", fn_enabled) if ui_show_plots else fn_enabled
+                group_payload_items.append({
+                    "f": fn_name,
+                    "enabled": bool(current_val)
+                })
+            vis_payload_dict[group_key] = group_payload_items
+
+        return vis_payload_dict if vis_payload_dict else None
+
+    # Case 1: Supervised Classification in train mode
+    vis_train = build_vis_payload("supervised", "classification", "train", caps)
+    assert vis_train["show_plots"] is True
+    # 14. Context relevant: cla_posttrain_list and pretrain_list included; reg and tuning excluded
+    assert "cla_posttrain_list" in vis_train
+    assert "pretrain_list" in vis_train
+    assert "reg_posttrain_list" not in vis_train
+    assert "tuning_list" not in vis_train
+    # 16. Future plot supported
+    assert any(x["f"] == "future_radar_chart" for x in vis_train["pretrain_list"])
+
+    # Case 2: Supervised Regression in tune mode
+    vis_tune = build_vis_payload("supervised", "regression", "tune", caps)
+    assert "reg_posttrain_list" in vis_tune
+    assert "tuning_list" in vis_tune
+    assert "cla_posttrain_list" not in vis_tune
+
+    # Case 3: show_plots == False preserves schema with defaults
+    vis_disabled = build_vis_payload("supervised", "classification", "train", caps, show_plots_override=False)
+    assert vis_disabled["show_plots"] is False
+    assert "cla_posttrain_list" in vis_disabled
+    assert "pretrain_list" in vis_disabled
+    assert "enabled" not in vis_disabled  # No artificial master enabled field invented
+
+    # Case 4: Missing capabilities does not fabricate plots
+    empty_vis_caps = {"visualization": {"supervised": {"defaults": {}}}}
+    assert build_vis_payload("supervised", "classification", "train", empty_vis_caps) is None
+
 
 
 

@@ -546,10 +546,72 @@ CAPABILITIES = CapabilityResponse(
         }
     },
     evaluation={
-        "capabilities": ["confusion_matrix", "feature_importance", "residuals", "anomaly_distribution"]
+        "supervised": {
+            "defaults": {
+                "cls_evaluation": [
+                    {"f": "accuracy", "enabled": True},
+                    {"f": "f1_score", "enabled": True},
+                    {"f": "precision", "enabled": True},
+                    {"f": "recall", "enabled": True},
+                    {"f": "roc_auc", "enabled": True},
+                ],
+                "reg_evaluation": [
+                    {"f": "mae", "enabled": True},
+                    {"f": "mse", "enabled": False},
+                    {"f": "rmse", "enabled": True},
+                    {"f": "r2", "enabled": True},
+                    {"f": "mape", "enabled": False},
+                ],
+            }
+        },
+        "unsupervised": {
+            "defaults": {
+                "ano_evaluation": [
+                    {"f": "silhouette_score", "enabled": True},
+                    {"f": "anomaly_score", "enabled": True},
+                ]
+            }
+        }
     },
     visualization={
-        "capabilities": ["roc_curve", "pr_curve", "residual_plot", "feature_importance_plot", "anomaly_score_histogram"]
+        "supervised": {
+            "defaults": {
+                "show_plots": True,
+                "pretrain_list": [
+                    {"f": "pairplot", "enabled": True},
+                    {"f": "target_histogram", "enabled": False},
+                    {"f": "target_boxplot", "enabled": False},
+                ],
+                "tuning_list": [
+                    {"f": "optimization_history", "enabled": True},
+                    {"f": "param_importances", "enabled": True},
+                ],
+                "cla_posttrain_list": [
+                    {"f": "confusion_matrix", "enabled": True},
+                    {"f": "roc_curve", "enabled": True},
+                    {"f": "pr_curve", "enabled": False},
+                ],
+                "reg_posttrain_list": [
+                    {"f": "residual_plot", "enabled": True},
+                    {"f": "prediction_error_plot", "enabled": True},
+                ],
+            }
+        },
+        "unsupervised": {
+            "defaults": {
+                "show_plots": True,
+                "pretrain_list": [
+                    {"f": "pairplot", "enabled": True},
+                ],
+                "tuning_list": [
+                    {"f": "optimization_history", "enabled": True},
+                ],
+                "ano_posttrain_list": [
+                    {"f": "anomaly_score_histogram", "enabled": True},
+                    {"f": "anomaly_cluster_scatter", "enabled": True},
+                ],
+            }
+        }
     },
     algorithm_metadata=ALGORITHM_METADATA,
     parameter_schema=PARAMETER_SCHEMA

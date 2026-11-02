@@ -267,11 +267,51 @@ KNOWN_ERROR_CODES: Dict[tuple, Dict[str, str]] = {
         "empty": "CAP-EVAL-001",
         "invalid": "CAP-EVAL-001"
     },
+    ("evaluation", "supervised"): {
+        "missing": "CAP-EVAL-002",
+        "empty": "CAP-EVAL-002",
+        "invalid": "CAP-EVAL-002"
+    },
+    ("evaluation", "supervised", "defaults"): {
+        "missing": "CAP-EVAL-003",
+        "empty": "CAP-EVAL-003",
+        "invalid": "CAP-EVAL-003"
+    },
+    ("evaluation", "unsupervised"): {
+        "missing": "CAP-EVAL-002",
+        "empty": "CAP-EVAL-002",
+        "invalid": "CAP-EVAL-002"
+    },
+    ("evaluation", "unsupervised", "defaults"): {
+        "missing": "CAP-EVAL-003",
+        "empty": "CAP-EVAL-003",
+        "invalid": "CAP-EVAL-003"
+    },
     # Visualization
     ("visualization",): {
         "missing": "CAP-VIS-001",
         "empty": "CAP-VIS-001",
         "invalid": "CAP-VIS-001"
+    },
+    ("visualization", "supervised"): {
+        "missing": "CAP-VIS-002",
+        "empty": "CAP-VIS-002",
+        "invalid": "CAP-VIS-002"
+    },
+    ("visualization", "supervised", "defaults"): {
+        "missing": "CAP-VIS-003",
+        "empty": "CAP-VIS-003",
+        "invalid": "CAP-VIS-003"
+    },
+    ("visualization", "unsupervised"): {
+        "missing": "CAP-VIS-002",
+        "empty": "CAP-VIS-002",
+        "invalid": "CAP-VIS-002"
+    },
+    ("visualization", "unsupervised", "defaults"): {
+        "missing": "CAP-VIS-003",
+        "empty": "CAP-VIS-003",
+        "invalid": "CAP-VIS-003"
     },
 }
 
@@ -300,8 +340,16 @@ def _infer_error_code(path: Sequence[Union[str, int]], reason: str, custom_code:
         elif root == "data_analyze":
             return "CAP-AN-001"
         elif root == "evaluation":
+            if len(path) == 2:
+                return "CAP-EVAL-002"
+            elif len(path) >= 3:
+                return "CAP-EVAL-003"
             return "CAP-EVAL-001"
         elif root == "visualization":
+            if len(path) == 2:
+                return "CAP-VIS-002"
+            elif len(path) >= 3:
+                return "CAP-VIS-003"
             return "CAP-VIS-001"
 
     return "CAP-GEN-001"

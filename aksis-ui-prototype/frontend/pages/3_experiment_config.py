@@ -944,6 +944,213 @@ if learning_type and task and is_config_applicable(capabilities, "data_analyze",
                     "data_analyze_functions": da_payload_fns
                 }
 
+# ==============================================================================
+# 7. MODEL DEĞERLENDİRME (Evaluation Metrics - Açılır/Kapanır)
+# ==============================================================================
+evaluation_payload = None
+
+eval_applicable = (
+    learning_type is not None
+    and task is not None
+    and (
+        is_config_applicable(capabilities, f"{learning_type}_evaluation", learning_type, task)
+        or is_config_applicable(capabilities, "evaluation", learning_type, task)
+        or not (capabilities.get("config_applicability") if isinstance(capabilities, dict) else None)
+    )
+)
+
+if eval_applicable:
+    with st.expander("📈 7. Model Değerlendirme (Evaluation Metrics)", expanded=False):
+        st.caption("Model performansını ölçmek için kullanılacak değerlendirme metriklerini belirleyin.")
+
+        evaluation_caps = capabilities.get("evaluation", {}) if isinstance(capabilities, dict) else {}
+        evaluation_group = evaluation_caps.get(learning_type, {}) if isinstance(evaluation_caps, dict) else {}
+        evaluation_defaults = evaluation_group.get("defaults", {}) if isinstance(evaluation_group, dict) else {}
+
+        diag_eval_root = validate_capability_path(capabilities, path=("evaluation",), required=True, allow_empty=False)
+        diag_eval_group = validate_capability_path(capabilities, path=("evaluation", learning_type), required=True, allow_empty=False)
+        diag_eval_defaults = validate_capability_path(capabilities, path=("evaluation", learning_type, "defaults"), required=True, allow_empty=False)
+
+        if not diag_eval_root:
+            st.warning(f"Değerlendirme yetenek tanımı eksik: {diag_eval_root}")
+        elif not diag_eval_group:
+            st.warning(f"'{learning_type}' için değerlendirme yetenekleri bulunamadı: {diag_eval_group}")
+        elif not diag_eval_defaults:
+            st.warning(f"Değerlendirme varsayılanları bulunamadı: {diag_eval_defaults}")
+        else:
+            # Determine the task-relevant evaluation list key
+            target_key = None
+            if task == "classification":
+                if "cls_evaluation" in evaluation_defaults:
+                    target_key = "cls_evaluation"
+                else:
+                    for k in evaluation_defaults:
+                        if "cls" in k or "classification" in k:
+                            target_key = k
+                            break
+            elif task == "regression":
+                if "reg_evaluation" in evaluation_defaults:
+                    target_key = "reg_evaluation"
+                else:
+                    for k in evaluation_defaults:
+                        if "reg" in k or "regression" in k:
+                            target_key = k
+                            break
+            elif learning_type == "unsupervised" or task == "anomaly_detection":
+                if "ano_evaluation" in evaluation_defaults:
+                    target_key = "ano_evaluation"
+                elif "unsupervised_evaluation" in evaluation_defaults:
+                    target_key = "unsupervised_evaluation"
+                elif "anomaly_evaluation" in evaluation_defaults:
+                    target_key = "anomaly_evaluation"
+                else:
+                    for k in evaluation_defaults:
+                        if "ano" in k or "anomaly" in k:
+                            target_key = k
+                            break
+
+            if not target_key:
+                for k, v in evaluation_defaults.items():
+                    if isinstance(v, list):
+                        target_key = k
+                        break
+
+            eval_items = evaluation_defaults.get(target_key, []) if target_key else []
+            if not eval_items:
+                st.info(f"'{task}' görevi için yapılandırılabilir değerlendirme metriği bulunamadı.")
+            else:
+                eval_payload_items = []
+                cols = st.columns(min(len(eval_items), 3) if len(eval_items) > 1 else 1)
+                for idx, item in enumerate(eval_items):
+                    if not isinstance(item, dict):
+                        continue
+                    fn_name = str(item.get("f", ""))
+                    fn_enabled = bool(item.get("enabled", True))
+                    fn_label = fn_name.replace("_", " ").title()
+
+                    with cols[idx % len(cols)]:
+                        val = st.checkbox(
+                            fn_label,
+                            value=fn_enabled,
+                            key=f"eval_fn_{target_key}_{fn_name}",
+                            help=f"`{fn_name}` metriğini hesapla."
+                        )
+                        eval_payload_items.append({
+                            "f": fn_name,
+                            "enabled": bool(val)
+                        })
+
+                if target_key:
+                    evaluation_payload = {
+                        target_key: eval_payload_items
+                    }
+
+# ==============================================================================
+# 8. GÖRSELLEŞTİRME (Visualization - Açılır/Kapanır)
+# ==============================================================================
+visualization_payload = None
+
+vis_applicable = (
+    learning_type is not None
+    and task is not None
+    and (
+        is_config_applicable(capabilities, f"{learning_type}_visualization", learning_type, task)
+        or is_config_applicable(capabilities, "visualization", learning_type, task)
+        or not (capabilities.get("config_applicability") if isinstance(capabilities, dict) else None)
+    )
+)
+
+if vis_applicable:
+    with st.expander("📉 8. Görselleştirme (Visualization)", expanded=False):
+        st.caption("Eğitim öncesi ve sonrası model ve veri grafiklerini yapılandırın.")
+
+        visualization_caps = capabilities.get("visualization", {}) if isinstance(capabilities, dict) else {}
+        visualization_group = visualization_caps.get(learning_type, {}) if isinstance(visualization_caps, dict) else {}
+        visualization_defaults = visualization_group.get("defaults", {}) if isinstance(visualization_group, dict) else {}
+
+        diag_vis_root = validate_capability_path(capabilities, path=("visualization",), required=True, allow_empty=False)
+        diag_vis_group = validate_capability_path(capabilities, path=("visualization", learning_type), required=True, allow_empty=False)
+        diag_vis_defaults = validate_capability_path(capabilities, path=("visualization", learning_type, "defaults"), required=True, allow_empty=False)
+
+        if not diag_vis_root:
+            st.warning(f"Görselleştirme yetenek tanımı eksik: {diag_vis_root}")
+        elif not diag_vis_group:
+            st.warning(f"'{learning_type}' için görselleştirme yetenekleri bulunamadı: {diag_vis_group}")
+        elif not diag_vis_defaults:
+            st.warning(f"Görselleştirme varsayılanları bulunamadı: {diag_vis_defaults}")
+        else:
+            has_show_plots_key = "show_plots" in visualization_defaults
+            def_show_plots = bool(visualization_defaults.get("show_plots", True)) if has_show_plots_key else True
+
+            if has_show_plots_key:
+                ui_show_plots = st.checkbox(
+                    "Grafikleri Göster (show_plots)",
+                    value=def_show_plots,
+                    key="vis_master_show_plots",
+                    help="Model eğitim ve değerlendirme aşamalarında grafik üretimini etkinleştirir."
+                )
+            else:
+                ui_show_plots = True
+
+            # Filter relevant function groups
+            relevant_groups = {}
+            for k, v in visualization_defaults.items():
+                if k == "show_plots" or not isinstance(v, list):
+                    continue
+                # Task/mode context filtering
+                if ("cla" in k or "classification" in k) and task != "classification":
+                    continue
+                if ("reg" in k or "regression" in k) and task != "regression":
+                    continue
+                if ("ano" in k or "anomaly" in k) and task != "anomaly_detection":
+                    continue
+                if "tuning" in k and selected_mode != "tune":
+                    continue
+                relevant_groups[k] = v
+
+            vis_payload_dict = {}
+            if has_show_plots_key:
+                vis_payload_dict["show_plots"] = bool(ui_show_plots)
+
+            if ui_show_plots:
+                for group_key, items in relevant_groups.items():
+                    group_title = group_key.replace("_", " ").title()
+                    st.markdown(f"**{group_title}**")
+                    group_payload_items = []
+                    cols = st.columns(min(len(items), 3) if len(items) > 1 else 1)
+                    for idx, item in enumerate(items):
+                        if not isinstance(item, dict):
+                            continue
+                        fn_name = str(item.get("f", ""))
+                        fn_enabled = bool(item.get("enabled", True))
+                        fn_label = fn_name.replace("_", " ").title()
+
+                        with cols[idx % len(cols)]:
+                            val = st.checkbox(
+                                fn_label,
+                                value=fn_enabled,
+                                key=f"vis_fn_{group_key}_{fn_name}",
+                                help=f"`{fn_name}` grafiğini oluştur."
+                            )
+                            group_payload_items.append({
+                                "f": fn_name,
+                                "enabled": bool(val)
+                            })
+                    vis_payload_dict[group_key] = group_payload_items
+            else:
+                for group_key, items in relevant_groups.items():
+                    group_payload_items = []
+                    for item in items:
+                        if isinstance(item, dict):
+                            group_payload_items.append({
+                                "f": str(item.get("f", "")),
+                                "enabled": bool(item.get("enabled", True))
+                            })
+                    vis_payload_dict[group_key] = group_payload_items
+
+            if vis_payload_dict:
+                visualization_payload = vis_payload_dict
+
 # Model parameters (sadece preset == "custom" iken overrides ekle, aksi halde {})
 final_parameters = custom_overrides if (task and algorithm and preset == "custom") else {}
 
@@ -968,9 +1175,13 @@ if tuning_payload is not None:
     req_payload["tuning"] = tuning_payload
 if data_analyze_payload is not None:
     req_payload["data_analyze"] = data_analyze_payload
+if evaluation_payload is not None:
+    req_payload["evaluation"] = evaluation_payload
+if visualization_payload is not None:
+    req_payload["visualization"] = visualization_payload
 
 # ==============================================================================
-# 7. DENEY YAPILANDIRMA ÖZETİ VE GÖNDERİM
+# 9. DENEY YAPILANDIRMA ÖZETİ VE GÖNDERİM
 # ==============================================================================
 with st.container(border=True):
     st.markdown("### 📋 Deney Yapılandırma Özeti")
