@@ -219,6 +219,16 @@ KNOWN_ERROR_CODES: Dict[tuple, Dict[str, str]] = {
         "empty": "CAP-PREP-004",
         "invalid": "CAP-PREP-004"
     },
+    ("preprocessing", "numeric_imputer_methods"): {
+        "missing": "CAP-PREP-005",
+        "empty": "CAP-PREP-005",
+        "invalid": "CAP-PREP-005"
+    },
+    ("preprocessing", "categorical_imputer_methods"): {
+        "missing": "CAP-PREP-006",
+        "empty": "CAP-PREP-006",
+        "invalid": "CAP-PREP-006"
+    },
     # Data Split
     ("data_split",): {
         "missing": "CAP-DS-001",

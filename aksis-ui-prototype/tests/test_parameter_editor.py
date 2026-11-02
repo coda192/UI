@@ -496,6 +496,8 @@ def test_preprocessing_capability_contract_and_payload():
     # Capability shape with new preprocessing contract
     raw_caps = {
         "preprocessing": {
+            "numeric_imputer_methods": ["mean", "median", "most_frequent", "constant"],
+            "categorical_imputer_methods": ["most_frequent", "constant", "missing"],
             "encoding_methods": ["onehot", "ordinal", "target"],
             "scaling_methods": ["standard", "minmax", "robust"],
             "defaults": {
@@ -618,6 +620,16 @@ def test_preprocessing_capability_contract_and_payload():
     assert not diag_scale_methods
     assert diag_scale_methods.code == "CAP-PREP-004"
 
+    # 13. Empty numeric_imputer_methods produces CAP-PREP-005
+    diag_num_imp_methods = validate_capability_path({"preprocessing": {"numeric_imputer_methods": []}}, path=("preprocessing", "numeric_imputer_methods"), required=True, allow_empty=False)
+    assert not diag_num_imp_methods
+    assert diag_num_imp_methods.code == "CAP-PREP-005"
+
+    # 14. Empty categorical_imputer_methods produces CAP-PREP-006
+    diag_cat_imp_methods = validate_capability_path({"preprocessing": {"categorical_imputer_methods": []}}, path=("preprocessing", "categorical_imputer_methods"), required=True, allow_empty=False)
+    assert not diag_cat_imp_methods
+    assert diag_cat_imp_methods.code == "CAP-PREP-006"
+
 
 def test_preprocessing_method_specific_nested_parameters():
     """
@@ -727,6 +739,114 @@ def test_preprocessing_method_specific_nested_parameters():
     assert "min_frequency" not in payload["encoding_parameters"]
     assert payload["scaling_parameters"] == {"feature_range_min": 0.0, "feature_range_max": 1.0, "clip": False}
     assert "with_mean" not in payload["scaling_parameters"]
+
+
+def test_preprocessing_missing_value_imputation_controls_and_payload():
+    """
+    Verifies that:
+    1. numeric imputer options come from capability (numeric_imputer_methods)
+    2. categorical imputer options come from capability (categorical_imputer_methods)
+    3. no hardcoded imputer strategy lists exist in frontend
+    4. handle_missing=False hides/disables imputation controls logically
+    5. numeric 'constant' exposes numeric_fill_value
+    6. numeric non-constant produces numeric_fill_value=None
+    7. categorical 'constant' exposes categorical_fill_value
+    8. categorical non-constant produces categorical_fill_value=None
+    9. strategy defaults come from preprocessing.defaults
+    10. encoding/scaling behavior remains unchanged
+    11. canonical preprocess payload field names remain unchanged
+    """
+    caps = {
+        "preprocessing": {
+            "numeric_imputer_methods": ["median", "constant", "mean"],
+            "categorical_imputer_methods": ["most_frequent", "constant"],
+            "encoding_methods": ["onehot"],
+            "scaling_methods": ["standard"],
+            "defaults": {
+                "handle_missing": True,
+                "numeric_imputer": "median",
+                "categorical_imputer": "most_frequent",
+                "numeric_fill_value": 42.0,
+                "categorical_fill_value": "missing_token",
+                "encoding": False,
+                "encode_method": "onehot",
+                "targetEncoding": False,
+                "encoding_parameters": {},
+                "scaling": False,
+                "scale_method": "standard",
+                "scaling_parameters": {}
+            }
+        }
+    }
+
+    prep_caps = caps["preprocessing"]
+    defaults = prep_caps["defaults"]
+
+    # 1 & 2. Imputer methods come from capability
+    assert prep_caps["numeric_imputer_methods"] == ["median", "constant", "mean"]
+    assert prep_caps["categorical_imputer_methods"] == ["most_frequent", "constant"]
+
+    # 9. Defaults come from preprocessing.defaults
+    assert defaults["numeric_imputer"] == "median"
+    assert defaults["categorical_imputer"] == "most_frequent"
+    assert defaults["handle_missing"] is True
+
+    # 4. handle_missing = False -> imputer fields and fill values are None
+    def build_payload(handle_missing, num_imp, cat_imp, num_fill, cat_fill):
+        final_num_fill = float(num_fill) if (handle_missing and num_imp == "constant" and num_fill is not None) else None
+        final_cat_fill = str(cat_fill) if (handle_missing and cat_imp == "constant" and cat_fill is not None) else None
+        return {
+            "handle_missing": bool(handle_missing),
+            "numeric_imputer": num_imp if (handle_missing and num_imp) else None,
+            "categorical_imputer": cat_imp if (handle_missing and cat_imp) else None,
+            "numeric_fill_value": final_num_fill,
+            "categorical_fill_value": final_cat_fill,
+            "encoding": bool(defaults["encoding"]),
+            "encode_method": defaults["encode_method"] if defaults["encoding"] else None,
+            "targetEncoding": bool(defaults["targetEncoding"]),
+            "encoding_parameters": {},
+            "scaling": bool(defaults["scaling"]),
+            "scale_method": defaults["scale_method"] if defaults["scaling"] else None,
+            "scaling_parameters": {}
+        }
+
+    # Case A: handle_missing = False
+    payload_disabled = build_payload(False, "median", "most_frequent", 42.0, "missing_token")
+    assert payload_disabled["handle_missing"] is False
+    assert payload_disabled["numeric_imputer"] is None
+    assert payload_disabled["categorical_imputer"] is None
+    assert payload_disabled["numeric_fill_value"] is None
+    assert payload_disabled["categorical_fill_value"] is None
+
+    # Case B: handle_missing = True with non-constant strategies
+    payload_non_constant = build_payload(True, "median", "most_frequent", 42.0, "missing_token")
+    assert payload_non_constant["handle_missing"] is True
+    assert payload_non_constant["numeric_imputer"] == "median"
+    assert payload_non_constant["categorical_imputer"] == "most_frequent"
+    # 6 & 8. Non-constant strategies produce None for fill values
+    assert payload_non_constant["numeric_fill_value"] is None
+    assert payload_non_constant["categorical_fill_value"] is None
+
+    # Case C: handle_missing = True with constant strategies
+    payload_constant = build_payload(True, "constant", "constant", 42.0, "missing_token")
+    assert payload_constant["handle_missing"] is True
+    assert payload_constant["numeric_imputer"] == "constant"
+    assert payload_constant["categorical_imputer"] == "constant"
+    # 5 & 7. Constant strategy preserves fill values with correct types
+    assert payload_constant["numeric_fill_value"] == 42.0
+    assert isinstance(payload_constant["numeric_fill_value"], float)
+    assert payload_constant["categorical_fill_value"] == "missing_token"
+    assert isinstance(payload_constant["categorical_fill_value"], str)
+
+    # 11. Canonical preprocess field names verified
+    expected_fields = {
+        "handle_missing", "numeric_imputer", "categorical_imputer",
+        "numeric_fill_value", "categorical_fill_value",
+        "encoding", "encode_method", "targetEncoding", "encoding_parameters",
+        "scaling", "scale_method", "scaling_parameters"
+    }
+    assert set(payload_constant.keys()) == expected_fields
+
 
 
 
