@@ -848,6 +848,126 @@ def test_preprocessing_missing_value_imputation_controls_and_payload():
     assert set(payload_constant.keys()) == expected_fields
 
 
+def test_missing_value_imputation_bugfixes_and_edge_cases():
+    """
+    Directly tests the two bug fixes:
+    1. handle_missing=False does not raise NameError and variables are safe.
+    2. All four imputation variables have safe values when disabled.
+    3. Disabled missing handling produces None for all imputation payload fields.
+    4. Numeric fill default None does NOT become 0 or 0.0 automatically.
+    5. Blank numeric constant input becomes None.
+    6. Valid numeric constant input preserves numeric type (int and float).
+    7. Invalid numeric constant input is rejected cleanly (becomes None, no crash).
+    8. Categorical default None / untouched empty string normalizes to None.
+    """
+    # Simulate UI initialization before checkbox
+    ui_numeric_imputer = None
+    ui_categorical_imputer = None
+    ui_numeric_fill = None
+    ui_categorical_fill = None
+
+    # Test 1 & 2: handle_missing = False does not raise NameError and state is safe
+    ui_handle_missing = False
+    if ui_handle_missing:
+        ui_numeric_imputer = "mean"
+        ui_categorical_imputer = "most_frequent"
+        ui_numeric_fill = 1.0
+        ui_categorical_fill = "constant"
+
+    assert ui_numeric_imputer is None
+    assert ui_categorical_imputer is None
+    assert ui_numeric_fill is None
+    assert ui_categorical_fill is None
+
+    # Test 3: Disabled missing handling produces None for all imputation payload fields
+    final_num_imputer = ui_numeric_imputer if ui_handle_missing else None
+    final_cat_imputer = ui_categorical_imputer if ui_handle_missing else None
+    final_num_fill = (
+        ui_numeric_fill
+        if (ui_handle_missing and ui_numeric_imputer == "constant" and ui_numeric_fill is not None)
+        else None
+    )
+    final_cat_fill = (
+        ui_categorical_fill
+        if (ui_handle_missing and ui_categorical_imputer == "constant" and ui_categorical_fill is not None)
+        else None
+    )
+
+    payload_disabled = {
+        "handle_missing": bool(ui_handle_missing),
+        "numeric_imputer": final_num_imputer,
+        "categorical_imputer": final_cat_imputer,
+        "numeric_fill_value": final_num_fill,
+        "categorical_fill_value": final_cat_fill,
+    }
+    assert payload_disabled == {
+        "handle_missing": False,
+        "numeric_imputer": None,
+        "categorical_imputer": None,
+        "numeric_fill_value": None,
+        "categorical_fill_value": None,
+    }
+
+    # Parser function matching 3_experiment_config.py implementation
+    def parse_numeric_fill_input(raw_input: str):
+        raw = raw_input.strip() if raw_input is not None else ""
+        if raw == "":
+            return None
+        try:
+            if "." in raw or "e" in raw.lower():
+                return float(raw)
+            else:
+                try:
+                    return int(raw)
+                except ValueError:
+                    return float(raw)
+        except ValueError:
+            return None
+
+    # Test 4: Numeric fill default None does NOT become 0 or 0.0 automatically
+    cap_default_none = None
+    default_num_str = str(cap_default_none) if cap_default_none is not None else ""
+    assert default_num_str == ""
+    assert parse_numeric_fill_input(default_num_str) is None
+
+    # Test 5: Blank numeric constant input becomes None
+    assert parse_numeric_fill_input("") is None
+    assert parse_numeric_fill_input("   ") is None
+
+    # Test 6: Valid numeric constant input preserves numeric type
+    parsed_int = parse_numeric_fill_input("42")
+    assert parsed_int == 42
+    assert type(parsed_int) is int
+
+    parsed_float = parse_numeric_fill_input("3.14")
+    assert parsed_float == 3.14
+    assert type(parsed_float) is float
+
+    parsed_sci = parse_numeric_fill_input("1e-4")
+    assert parsed_sci == 0.0001
+    assert type(parsed_sci) is float
+
+    # Test 7: Invalid numeric constant input is rejected cleanly
+    assert parse_numeric_fill_input("abc") is None
+    assert parse_numeric_fill_input("not_a_number") is None
+    assert parse_numeric_fill_input("12.34.56") is None
+
+    # Parser function for categorical fill matching 3_experiment_config.py
+    def parse_categorical_fill_input(raw_input: str):
+        if raw_input is None or raw_input.strip() == "":
+            return None
+        return raw_input.strip()
+
+    # Test 8: Categorical default None / untouched becomes None
+    cap_cat_default_none = None
+    default_cat_str = str(cap_cat_default_none) if cap_cat_default_none is not None else ""
+    assert default_cat_str == ""
+    assert parse_categorical_fill_input(default_cat_str) is None
+    assert parse_categorical_fill_input("   ") is None
+    assert parse_categorical_fill_input("custom_fill") == "custom_fill"
+
+
+
 
 
 

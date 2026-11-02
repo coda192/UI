@@ -439,16 +439,16 @@ if learning_type and task and is_config_applicable(capabilities, "preprocess", l
 
         # Tab 1: Eksik Değer Yönetimi
         with tab_missing:
+            ui_numeric_imputer = None
+            ui_categorical_imputer = None
+            ui_numeric_fill = None
+            ui_categorical_fill = None
+
             ui_handle_missing = st.checkbox(
                 "Eksik Değerleri Yönet (handle_missing)",
                 value=bool(prep_defaults.get("handle_missing", True)),
                 key="prep_handle_missing"
             )
-
-            ui_num_imputer = None
-            ui_num_fill = None
-            ui_cat_imputer = None
-            ui_cat_fill = None
 
             if ui_handle_missing:
                 c_m1, c_m2 = st.columns(2)
@@ -460,7 +460,7 @@ if learning_type and task and is_config_applicable(capabilities, "preprocess", l
                             if def_num_imputer in numeric_imputer_methods
                             else 0
                         )
-                        ui_num_imputer = st.selectbox(
+                        ui_numeric_imputer = st.selectbox(
                             "Sayısal Değer Tamamlama (numeric_imputer)",
                             options=numeric_imputer_methods,
                             index=def_num_idx,
@@ -475,16 +475,32 @@ if learning_type and task and is_config_applicable(capabilities, "preprocess", l
                             allow_empty=False
                         )
                         st.warning(f"Sayısal tamamlama yöntemleri bulunamadı: {diag_num_imp}")
-                        ui_num_imputer = def_num_imputer
+                        ui_numeric_imputer = def_num_imputer
 
-                    if ui_num_imputer == "constant":
+                    if ui_numeric_imputer == "constant":
                         num_fill_def = prep_defaults.get("numeric_fill_value")
-                        val_num_fill = float(num_fill_def) if num_fill_def is not None else 0.0
-                        ui_num_fill = float(st.number_input(
+                        default_num_str = str(num_fill_def) if num_fill_def is not None else ""
+                        raw_num_fill = st.text_input(
                             "Sayısal Doldurma Değeri (numeric_fill_value)",
-                            value=val_num_fill,
-                            key="prep_numeric_fill_value"
-                        ))
+                            value=default_num_str,
+                            key="prep_numeric_fill_value",
+                            help="Sayısal tamamlama sabit değerini girin. Boş bırakılırsa atanmaz."
+                        ).strip()
+
+                        if raw_num_fill == "":
+                            ui_numeric_fill = None
+                        else:
+                            try:
+                                if "." in raw_num_fill or "e" in raw_num_fill.lower():
+                                    ui_numeric_fill = float(raw_num_fill)
+                                else:
+                                    try:
+                                        ui_numeric_fill = int(raw_num_fill)
+                                    except ValueError:
+                                        ui_numeric_fill = float(raw_num_fill)
+                            except ValueError:
+                                st.error("Lütfen geçerli bir sayısal değer girin (örn: 0, 42, 3.14).")
+                                ui_numeric_fill = None
 
                 with c_m2:
                     def_cat_imputer = prep_defaults.get("categorical_imputer")
@@ -494,7 +510,7 @@ if learning_type and task and is_config_applicable(capabilities, "preprocess", l
                             if def_cat_imputer in categorical_imputer_methods
                             else 0
                         )
-                        ui_cat_imputer = st.selectbox(
+                        ui_categorical_imputer = st.selectbox(
                             "Kategorik Değer Tamamlama (categorical_imputer)",
                             options=categorical_imputer_methods,
                             index=def_cat_idx,
@@ -509,16 +525,21 @@ if learning_type and task and is_config_applicable(capabilities, "preprocess", l
                             allow_empty=False
                         )
                         st.warning(f"Kategorik tamamlama yöntemleri bulunamadı: {diag_cat_imp}")
-                        ui_cat_imputer = def_cat_imputer
+                        ui_categorical_imputer = def_cat_imputer
 
-                    if ui_cat_imputer == "constant":
+                    if ui_categorical_imputer == "constant":
                         cat_fill_def = prep_defaults.get("categorical_fill_value")
-                        val_cat_fill = str(cat_fill_def) if cat_fill_def is not None else ""
-                        ui_cat_fill = st.text_input(
+                        default_cat_str = str(cat_fill_def) if cat_fill_def is not None else ""
+                        raw_cat_fill = st.text_input(
                             "Kategorik Doldurma Değeri (categorical_fill_value)",
-                            value=val_cat_fill,
-                            key="prep_categorical_fill_value"
+                            value=default_cat_str,
+                            key="prep_categorical_fill_value",
+                            help="Kategorik tamamlama sabit değerini girin. Boş bırakılırsa atanmaz."
                         )
+                        if raw_cat_fill.strip() == "":
+                            ui_categorical_fill = None
+                        else:
+                            ui_categorical_fill = raw_cat_fill.strip()
 
         # Tab 2: Kategorik Kodlama
         with tab_encoding:
@@ -718,34 +739,35 @@ if learning_type and task and is_config_applicable(capabilities, "preprocess", l
                         else:
                             ui_scaling_params[p_k] = p_v
 
-        # Check if at least one preprocessing feature is enabled / configured
-        has_prep_configured = (
-            ui_handle_missing
-            or bool(ui_numeric_imputer)
-            or bool(ui_categorical_imputer)
-            or ui_encoding
-            or ui_target_encoding
-            or ui_scaling
+        # Payload sanitization and construction
+        final_num_imputer = ui_numeric_imputer if ui_handle_missing else None
+        final_cat_imputer = ui_categorical_imputer if ui_handle_missing else None
+
+        final_num_fill = (
+            ui_numeric_fill
+            if (ui_handle_missing and ui_numeric_imputer == "constant" and ui_numeric_fill is not None)
+            else None
+        )
+        final_cat_fill = (
+            ui_categorical_fill
+            if (ui_handle_missing and ui_categorical_imputer == "constant" and ui_categorical_fill is not None)
+            else None
         )
 
-        if has_prep_configured:
-            final_num_fill = float(ui_num_fill) if (ui_handle_missing and ui_num_imputer == "constant" and ui_num_fill is not None) else None
-            final_cat_fill = str(ui_cat_fill) if (ui_handle_missing and ui_cat_imputer == "constant" and ui_cat_fill is not None) else None
-
-            preprocess_payload = {
-                "handle_missing": bool(ui_handle_missing),
-                "numeric_imputer": ui_num_imputer if (ui_handle_missing and ui_num_imputer) else None,
-                "categorical_imputer": ui_cat_imputer if (ui_handle_missing and ui_cat_imputer) else None,
-                "numeric_fill_value": final_num_fill,
-                "categorical_fill_value": final_cat_fill,
-                "encoding": bool(ui_encoding),
-                "encode_method": ui_encode_method if ui_encoding else None,
-                "targetEncoding": bool(ui_target_encoding),
-                "encoding_parameters": ui_encoding_params,
-                "scaling": bool(ui_scaling),
-                "scale_method": ui_scale_method if ui_scaling else None,
-                "scaling_parameters": ui_scaling_params
-            }
+        preprocess_payload = {
+            "handle_missing": bool(ui_handle_missing),
+            "numeric_imputer": final_num_imputer,
+            "categorical_imputer": final_cat_imputer,
+            "numeric_fill_value": final_num_fill,
+            "categorical_fill_value": final_cat_fill,
+            "encoding": bool(ui_encoding),
+            "encode_method": ui_encode_method if ui_encoding else None,
+            "targetEncoding": bool(ui_target_encoding),
+            "encoding_parameters": ui_encoding_params,
+            "scaling": bool(ui_scaling),
+            "scale_method": ui_scale_method if ui_scaling else None,
+            "scaling_parameters": ui_scaling_params
+        }
 
 # ==============================================================================
 # 5. VERİ BÖLÜMLEME VE DOĞRULAMA (Data Splitting & Validation - Açılır/Kapanır)
