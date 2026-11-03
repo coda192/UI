@@ -321,7 +321,7 @@ with st.container(border=True):
             # ÖZEL MODEL PARAMETRELERİ (Yalnızca preset == "custom" İken Açılır)
             if preset == "custom" and algorithm:
                 st.divider()
-                st.info("Custom model parameter configuration is temporarily disabled for the demo.")
+                st.info("Özel model parametre yapılandırması bu sürümde geçici olarak devre dışıdır.")
     else:
         algorithm = None
         preset = None

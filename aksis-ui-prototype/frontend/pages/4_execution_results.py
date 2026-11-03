@@ -8,7 +8,7 @@ st.title("📈 Çalıştırma & Sonuçlar")
 client = st.session_state.client
 
 STATUS_TR = {
-    "configured": "⚙️ Yapılandırıldı (Eğitime Hazır)",
+    "configured": "⚙️ Yapılandırıldı (Çalıştırmaya Hazır)",
     "running": "⏳ Eğitiliyor...",
     "completed": "✅ Tamamlandı",
     "failed": "❌ Başarısız"
@@ -22,7 +22,7 @@ SUMMARY_KEYS_TR = {
 }
 
 TABLE_TITLES_TR = {
-    "confusion_matrix": "Hata / Karışıklık Matrisi (Confusion Matrix)",
+    "confusion_matrix": "Karışıklık Matrisi",
     "top_anomalies": "En Yüksek Skorlu Anomaliler",
     "anomalous_records": "Tespit Edilen Anomali Kayıtları"
 }
@@ -55,7 +55,7 @@ try:
     st.write(f"**Güncel Durum:** {STATUS_TR.get(status, status)}")
     
     if status == "configured":
-        if st.button("🚀 Eğitimi Başlat (Run Experiment)"):
+        if st.button("🚀 Deneyi Çalıştır"):
             client.run_experiment(selected_exp_id)
             st.success("Eğitim süreci başlatıldı...")
             st.rerun()
@@ -110,13 +110,13 @@ try:
                 
         elif task == "anomaly_detection":
             if has_gt:
-                st.subheader("Etiketli Anomali Metrikleri (Ground Truth)")
+                st.subheader("Etiketli Anomali Metrikleri (Gerçek Etiket)")
                 anom_metrics = metrics.get("anomaly_metrics", {})
                 mcols = st.columns(3)
                 for i, (k, v) in enumerate(anom_metrics.items()):
                     mcols[i % 3].metric(k.upper(), f"{v:.4f}" if isinstance(v, float) else v)
             else:
-                st.info("💡 **Etiketsiz Anomali Tespiti:** Veri setinde gerçek etiket (ground truth) bulunmadığı için denetimli doğruluk/F1 metrikleri hesaplanmamıştır.")
+                st.info("💡 **Etiketsiz Anomali Tespiti:** Veri setinde gerçek etiket bulunmadığı için denetimli doğruluk ve F1 metrikleri hesaplanmamıştır.")
                 
         st.header("📈 Görselleştirmeler ve Tablolar")
         

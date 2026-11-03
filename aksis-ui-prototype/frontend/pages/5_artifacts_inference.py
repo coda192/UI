@@ -2,21 +2,21 @@ import streamlit as st
 import pandas as pd
 from api.client import AksisAPIError
 
-st.title("🚀 Modeller & Toplu Tahmin")
+st.title("🚀 Model Artefaktları & Toplu Tahmin")
 
 client = st.session_state.client
 
 try:
-    st.header("📦 Eğitilmiş Model Çıktıları (Artifacts)")
+    st.header("📦 Model Artefaktları")
     artifacts = client.list_artifacts()
     
     if not artifacts:
-        st.info("Kayıtlı model çıktısı bulunamadı. Lütfen önce 'Çalıştırma & Sonuçlar' sayfasında bir model eğitimini tamamlayın.")
+        st.info("Kayıtlı model artefaktı bulunamadı. Lütfen önce 'Çalıştırma & Sonuçlar' sayfasında bir deneyi tamamlayın.")
     else:
         df_art = pd.DataFrame(artifacts)
         df_art = df_art.rename(columns={
-            "id": "Artifact ID",
-            "name": "Model / Çıktı Adı",
+            "id": "Artefakt Kimliği",
+            "name": "Artefakt Adı",
             "type": "Tür",
             "experiment_id": "İlgili Deney ID",
             "created_at": "Oluşturulma Tarihi"
@@ -24,11 +24,11 @@ try:
         st.dataframe(df_art, use_container_width=True)
         
         st.divider()
-        st.header("🎯 Toplu Tahmin (Batch Inference)")
+        st.header("🎯 Toplu Tahmin")
         
         model_artifacts = [a for a in artifacts if a["type"] == "model"]
         if not model_artifacts:
-            st.warning("Tahmin için kullanılabilir model çıktısı bulunamadı.")
+            st.warning("Tahmin için kullanılabilir model artefaktı bulunamadı.")
             st.stop()
             
         datasets = client.get_datasets()
@@ -50,7 +50,7 @@ try:
                 format_func=lambda x: ds_options[x]
             )
         
-        if st.button("🚀 Tahminleri Üret (Run Inference)"):
+        if st.button("🚀 Tahminleri Üret"):
             with st.spinner("Model veri seti üzerinde çalıştırılıyor..."):
                 resp = client.run_inference({
                     "artifact_id": sel_artifact,

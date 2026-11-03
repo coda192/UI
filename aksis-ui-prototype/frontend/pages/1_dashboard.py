@@ -10,28 +10,28 @@ client = st.session_state.client
 
 # Sunum Etiketleri (Presentation Aliases)
 TASK_NAMES_TR = {
-    "classification": "Sınıflandırma (Classification)",
-    "regression": "Regresyon (Regression)",
-    "anomaly_detection": "Anomali Tespiti (Anomaly Detection)"
+    "classification": "Sınıflandırma",
+    "regression": "Regresyon",
+    "anomaly_detection": "Anomali Tespiti"
 }
 
 LEARNING_TYPES_TR = {
-    "supervised": "Denetimli (Supervised)",
-    "unsupervised": "Denetimsiz (Unsupervised)"
+    "supervised": "Denetimli Öğrenme",
+    "unsupervised": "Denetimsiz Öğrenme"
 }
 
 MODE_NAMES_TR = {
-    "train": "Model Eğitimi (train)",
-    "tune": "Hiperparametre Optimizasyonu (tune)",
-    "predict": "Toplu Çıkarım / Tahmin (predict)"
+    "train": "Model Eğitimi",
+    "tune": "Hiperparametre Optimizasyonu",
+    "predict": "Toplu Tahmin"
 }
 
 PRESET_NAMES_TR = {
-    "baseline": "Temel Seviye (baseline)",
-    "fast": "Hızlı (fast)",
-    "strong": "Yüksek Başarım (strong)",
-    "custom": "Özel Ayar (custom)",
-    "default": "Varsayılan (default)"
+    "baseline": "Temel Seviye",
+    "fast": "Hızlı",
+    "strong": "Yüksek Başarım",
+    "custom": "Özel Yapılandırma",
+    "default": "Varsayılan"
 }
 
 STATUS_TR = {
@@ -95,7 +95,7 @@ with m4:
 st.divider()
 
 # 2. GÖREV VE ÇALIŞMA MODU DAĞILIMI (Dinamik Framework Yetenekleri)
-st.subheader("⚙️ Çerçeve Yetenekleri ve Modları (Framework Capabilities)")
+st.subheader("⚙️ AKSIS Yetenekleri ve Çalışma Modları")
 
 col_cap1, col_cap2, col_cap3 = st.columns(3)
 
@@ -121,7 +121,7 @@ with col_cap3:
 st.divider()
 
 # 3. MODEL & ALGORİTMA KATALOĞU (Registry & Karar Destek Rehberi)
-st.subheader("📚 Kayıtlı Model & Algoritma Kataloğu (Registry & Rehber)")
+st.subheader("📚 Model ve Algoritma Kataloğu")
 st.caption("Her algoritmanın güçlü/zayıf yönleri ve kurumsal karar destek için önerilen kullanım senaryoları.")
 
 task_keys = list(algorithms_dict.keys())
@@ -222,19 +222,19 @@ else:
 with p_col1:
     with st.container(border=True):
         st.markdown("#### 🩹 Önişleme Stratejileri")
-        st.caption("Eksik Değerler (Imputation):")
+        st.caption("Eksik Değer Yönetimi:")
         for s in prep_strats.get("missing_value", []):
             st.write(f"- `{s}`")
-        st.caption("Kategorik Kodlama (Encoding):")
+        st.caption("Kategorik Kodlama:")
         for s in prep_strats.get("encoding", []):
             st.write(f"- `{s}`")
-        st.caption("Ölçeklendirme (Scaling):")
+        st.caption("Sayısal Ölçeklendirme:")
         for s in prep_strats.get("scaling", []):
             st.write(f"- `{s}`")
 
 with p_col2:
     with st.container(border=True):
-        st.markdown("#### 🎛️ Model Hazır Ayarları (Presets)")
+        st.markdown("#### 🎛️ Model Hazır Ayarları")
         for pr in presets:
             st.write(f"- `{pr}`: {PRESET_NAMES_TR.get(pr, pr)}")
         st.markdown("#### 📐 Doğrulama Seçenekleri")
@@ -243,15 +243,15 @@ with p_col2:
 
 with p_col3:
     with st.container(border=True):
-        st.markdown("#### ⚡ Optuna Tuning Yetenekleri")
-        st.caption("Samplers:")
+        st.markdown("#### ⚡ Hiperparametre Optimizasyonu")
+        st.caption("Arama Örnekleyicileri:")
         for s in samplers:
             st.write(f"- `{s}`")
-        st.caption("Pruners:")
+        st.caption("Budama Yöntemleri:")
         for p in pruners:
             st.write(f"- `{p}`")
         if space_presets:
-            st.caption("Space Presets:")
+            st.caption("Arama Uzayı Hazır Ayarları:")
             for sp in space_presets:
                 st.write(f"- `{sp}`")
 

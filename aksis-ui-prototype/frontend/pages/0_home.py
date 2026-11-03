@@ -88,14 +88,14 @@ with tab_mimari:
             
             subgraph PipelineLayer [⚙️ AKSIS Çekirdek Pipeline]
                 D2 --> P1[Önişleme & Sızıntı Önleme]
-                P1 --> P2[Model & Algoritma Eğitimi]
+                P1 --> P2[Model Eğitimi / Optimizasyon]
                 P2 --> P3[Optuna Hiperparametre Ayarı]
             end
             
             subgraph EvalLayer [📈 Değerlendirme & Dağıtım]
-                P3 --> E1[Metrikler & Kafa Karışıklığı]
-                E1 --> E2[Kayıtlı Model / Artifact]
-                E2 --> E3[Toplu Çıkarım / Inference]
+                P3 --> E1[Metrikler & Karışıklık Matrisi]
+                E1 --> E2[Model Artefaktı]
+                E2 --> E3[Toplu Tahmin]
             end
             
             style DataLayer fill:#0F172A,stroke:#38BDF8,stroke-width:1px,color:#FFFFFF
@@ -122,7 +122,7 @@ with tab_akis:
             st.write("Model eğitimini asenkron olarak çalıştırın; canlı durum takibi ile Accuracy, F1-Score, RMSE veya Anomali Skor dağılımlarını anında gözlemleyin.")
             
         with st.container(border=True):
-            st.markdown("#### 4. 🚀 Toplu Tahmin (Inference) Üretin")
+            st.markdown("#### 4. 🚀 Toplu Tahmin Üretin")
             st.write("Eğitilen model çıktılarını kullanarak yeni kurumsal veri setleri üzerinde toplu çıkarımlar gerçekleştirin ve sonuçları raporlayın.")
 
 with tab_guvenlik:
@@ -137,7 +137,7 @@ with tab_guvenlik:
     with col_g2:
         st.markdown("""
         ##### 📐 Metodolojik Doğruluk
-        * **Leakage-Safe Preprocessing:** Eğitim ve test kümeleri arasında veri sızıntısını engelleyen pipeline mimarisi.
-        * **Ground-Truth Denetimi:** Etiketsiz anomali analizlerinde yanıltıcı metrik üretimi engellenir.
+        * **Veri Sızıntısız Önişleme (Leakage-Safe):** Eğitim ve test kümeleri arasında veri sızıntısını engelleyen pipeline mimarisi.
+        * **Gerçek Etiket Denetimi:** Etiketsiz anomali analizlerinde yanıltıcı metrik üretimi engellenir.
         * **Tekrar Üretilebilirlik:** Her deney parametresi ve konfigürasyonu kayıt altına alınır.
         """)

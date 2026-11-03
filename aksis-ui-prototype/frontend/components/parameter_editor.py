@@ -33,7 +33,7 @@ def render_parameter_editor(
         st.warning("Bu model için özelleştirilebilir parametre şeması sağlanmamış.")
         return overrides
 
-    st.markdown("##### ⚙️ Model Hiperparametreleri (Custom Parameters)")
+    st.markdown("##### ⚙️ Model Hiperparametreleri")
     st.caption("Aşağıdaki parametreler doğrudan API tarafından sunulan şemaya göre dinamik olarak listelenmektedir:")
 
     # Parametreleri iki sütunlu düzenli bir grid halinde render et
@@ -119,7 +119,7 @@ def render_parameter_editor(
                     label=f"{readable_label} (`{param_name}`)",
                     options=choices,
                     index=default_idx,
-                    format_func=lambda x: "None (Varsayılan yok)" if x is None else str(x),
+                    format_func=lambda x: "Varsayılan Yok" if x is None else str(x),
                     help=help_text,
                     key=widget_key
                 )

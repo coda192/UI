@@ -67,22 +67,22 @@ try:
         col1, col2, col3 = st.columns(3)
         with col1:
             target_val = ds.get("target")
-            st.metric("Hedef Değişken (Target)", target_val if target_val else "Yok (Etiketsiz)")
+            st.metric("Hedef Değişken", target_val if target_val else "Yok (Etiketsiz)")
         with col2:
             source_val = ds.get("source")
-            st.metric("Veri Kaynağı (Source)", source_val if source_val else "Belirtilmemiş")
+            st.metric("Veri Kaynağı", source_val if source_val else "Belirtilmemiş")
         with col3:
             local_val = ds.get("local_data")
             if local_val is True:
                 local_str = "Evet (Yerel)"
             elif local_val is False:
-                local_str = "Hayır (Uzak / Stream)"
+                local_str = "Hayır (Uzak Kaynak)"
             else:
                 local_str = "Belirtilmemiş"
-            st.metric("Yerel Veri (Local Data)", local_str)
+            st.metric("Yerel Veri", local_str)
             
         if ds.get("columns_to_use"):
-            st.write(f"**Kullanılacak Sütunlar (Columns to Use):** {', '.join(ds.get('columns_to_use'))}")
+            st.write(f"**Kullanılacak Sütunlar:** {', '.join(ds.get('columns_to_use'))}")
             
         if ds.get("compatible_tasks"):
             comp_tasks = [TASK_NAMES_TR.get(t, t) for t in ds.get("compatible_tasks", [])]
@@ -94,7 +94,7 @@ try:
         st.divider()
         
         # 4. VERİ SETİ ANALİZİ (Dataset Analysis)
-        st.subheader("🔬 Veri Seti Analizi (Dataset Analysis)")
+        st.subheader("🔬 Veri Seti Analizi")
         
         btn_col1, btn_col2 = st.columns([8, 2])
         with btn_col2:
@@ -111,9 +111,9 @@ try:
             # 4.1. ÖZET METRİK KARTLARI (Summary Cards)
             m1, m2, m3, m4 = st.columns(4)
             with m1:
-                st.metric("Satır Sayısı (Rows)", f"{info.get('row_count', 0):,}")
+                st.metric("Satır Sayısı", f"{info.get('row_count', 0):,}")
             with m2:
-                st.metric("Sütun Sayısı (Columns)", f"{info.get('column_count', 0):,}")
+                st.metric("Sütun Sayısı", f"{info.get('column_count', 0):,}")
             with m3:
                 st.metric("Toplam Eksik Değer", f"{info.get('missing_value_count', 0):,}")
             with m4:
@@ -137,7 +137,7 @@ try:
             st.divider()
 
             # 4.2. SÜTUN PROFİLLERİ (Column Profiles)
-            st.markdown("#### 📋 Sütun Profilleri (Column Profiles)")
+            st.markdown("#### 📋 Sütun Profilleri")
             cols_list = info.get("columns", [])
             if cols_list:
                 df_profile_cols = pd.DataFrame([
@@ -149,7 +149,7 @@ try:
                         "Benzersiz Değer": f"{c.get('unique_count', 0):,}",
                         "Eksik Değer": f"{c.get('missing_count', 0):,}",
                         "Eksik Oranı (%)": f"{(c.get('missing_rate', 0.0) * 100):.2f}%",
-                        "Etiketler (Flags)": ", ".join(c.get("flags", [])) if c.get("flags") else "-"
+                        "Sütun Etiketleri": ", ".join(c.get("flags", [])) if c.get("flags") else "-"
                     }
                     for c in cols_list
                 ])
@@ -189,7 +189,7 @@ try:
             st.divider()
 
             # 4.3. SAYISAL İSTATİSTİKLER GENEL BAKIŞ (Numeric Statistics Overview)
-            st.markdown("#### 🔢 Sayısal İstatistikler Genel Bakış (Numeric Statistics Overview)")
+            st.markdown("#### 🔢 Sayısal İstatistikler Özeti")
             st.caption("Tüm sayısal sütunların karşılaştırmalı betimsel istatistikleri, çeyrek sınırları ve çarpıklık değerleri.")
 
             numeric_cols = [
