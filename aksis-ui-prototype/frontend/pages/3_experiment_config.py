@@ -1206,61 +1206,51 @@ with st.container(border=True):
     if not prep_summary_items:
         prep_summary_items = ["Ek önişleme uygulanmıyor"]
 
-    # Veri Analizi özeti
+    # Veri Analizi özeti (seçilen fonksiyonların listesi)
+    active_da_items = []
     if data_analyze_payload and "data_analyze_functions" in data_analyze_payload:
         da_fns = data_analyze_payload.get("data_analyze_functions", [])
-        total_da = len(da_fns)
-        enabled_da = sum(1 for item in da_fns if isinstance(item, dict) and item.get("enabled"))
-        da_title = f"{enabled_da} / {total_da} analiz aktif"
-        da_desc = "Analiz adımları seçili" if enabled_da > 0 else "Analiz adımı seçilmedi"
+        for item in da_fns:
+            if isinstance(item, dict) and item.get("enabled"):
+                active_da_items.append(str(item.get("f", "")).replace("_", " ").title())
+        if not active_da_items:
+            active_da_items = ["Seçili analiz adımı yok"]
     else:
-        da_title = "Uygulanmıyor"
-        da_desc = "Veri analizi tanımlı değil"
+        active_da_items = ["Uygulanmıyor"]
 
-    # Değerlendirme özeti (dinamik alan adı ve metrikler)
+    # Değerlendirme özeti (seçilen metriklerin listesi)
+    active_eval_items = []
     if evaluation_payload and isinstance(evaluation_payload, dict):
         eval_items = []
         for k_ev, v_ev in evaluation_payload.items():
             if isinstance(v_ev, list):
                 eval_items = v_ev
                 break
-        total_ev = len(eval_items)
-        enabled_ev = sum(1 for item in eval_items if isinstance(item, dict) and item.get("enabled"))
-        ev_title = f"{enabled_ev} / {total_ev} metrik aktif"
-        active_metric_names = [
-            str(item.get("f", "")).replace("_", " ").title()
-            for item in eval_items
-            if isinstance(item, dict) and item.get("enabled")
-        ]
-        if 0 < len(active_metric_names) <= 3:
-            ev_desc = " · ".join(active_metric_names)
-        elif len(active_metric_names) > 3:
-            ev_desc = " · ".join(active_metric_names[:2]) + f" ve {len(active_metric_names) - 2} diğer"
-        else:
-            ev_desc = "Metrik seçilmedi"
+        for item in eval_items:
+            if isinstance(item, dict) and item.get("enabled"):
+                active_eval_items.append(str(item.get("f", "")).replace("_", " ").title())
+        if not active_eval_items:
+            active_eval_items = ["Seçili metrik yok"]
     else:
-        ev_title = "Uygulanmıyor"
-        ev_desc = "Değerlendirme tanımlı değil"
+        active_eval_items = ["Uygulanmıyor"]
 
-    # Görselleştirme özeti (jenerik liste sayımı)
+    # Görselleştirme özeti (seçilen grafiklerin listesi)
+    active_vis_items = []
     if visualization_payload and isinstance(visualization_payload, dict):
         if visualization_payload.get("show_plots") is False:
-            vis_status = "Grafik üretimi kapalı"
-            vis_count = "Görselleştirme devre dışı"
+            active_vis_items = ["Grafik üretimi kapalı"]
         else:
-            vis_status = "Grafikler açık"
-            enabled_plots = 0
-            total_plots = 0
             for k_vis, v_vis in visualization_payload.items():
                 if k_vis == "show_plots":
                     continue
                 if isinstance(v_vis, list):
-                    total_plots += len(v_vis)
-                    enabled_plots += sum(1 for item in v_vis if isinstance(item, dict) and item.get("enabled"))
-            vis_count = f"{enabled_plots} / {total_plots} grafik aktif"
+                    for item in v_vis:
+                        if isinstance(item, dict) and item.get("enabled"):
+                            active_vis_items.append(str(item.get("f", "")).replace("_", " ").title())
+            if not active_vis_items:
+                active_vis_items = ["Seçili grafik yok"]
     else:
-        vis_status = "Uygulanmıyor"
-        vis_count = "Görselleştirme tanımlı değil"
+        active_vis_items = ["Uygulanmıyor"]
 
     # 1. Satır: Temel Kapsam, Model, Çalışma Modu ve Hiperparametre
     if selected_mode == "tune":
@@ -1292,7 +1282,7 @@ with st.container(border=True):
 
     st.divider()
 
-    # 2. Satır: Boru Hattı Bileşenleri
+    # 2. Satır: Boru Hattı Bileşenleri (Seçilenleri doğrudan listeleyen yapı)
     c_pr, c_da, c_ev, c_vi = st.columns(4)
 
     with c_pr:
@@ -1302,18 +1292,18 @@ with st.container(border=True):
 
     with c_da:
         st.markdown("**📊 Veri Analizi**")
-        st.markdown(f"**{da_title}**")
-        st.caption(da_desc)
+        for da_item in active_da_items:
+            st.markdown(f"<span style='font-size: 0.9rem; color: #334155;'>• {da_item}</span>", unsafe_allow_html=True)
 
     with c_ev:
         st.markdown("**📈 Değerlendirme**")
-        st.markdown(f"**{ev_title}**")
-        st.caption(ev_desc)
+        for ev_item in active_eval_items:
+            st.markdown(f"<span style='font-size: 0.9rem; color: #334155;'>• {ev_item}</span>", unsafe_allow_html=True)
 
     with c_vi:
         st.markdown("**📉 Görselleştirme**")
-        st.markdown(f"**{vis_status}**")
-        st.caption(vis_count)
+        for vi_item in active_vis_items:
+            st.markdown(f"<span style='font-size: 0.9rem; color: #334155;'>• {vi_item}</span>", unsafe_allow_html=True)
 
 # Developer Payload Expander
 with st.expander("🔍 Geliştirici & API İstek Yükü (Canonical JSON Payload)", expanded=False):
