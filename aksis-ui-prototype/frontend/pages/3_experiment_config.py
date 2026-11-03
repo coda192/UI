@@ -1169,7 +1169,7 @@ with st.container(border=True):
     preset_label = PRESET_NAMES_TR.get(preset, preset) if preset else "Standart"
     mode_label = MODE_NAMES_TR.get(selected_mode, selected_mode.title() if selected_mode else "-")
 
-    # Bölümleme özeti
+    # Bölümleme özeti (seçilmişse yazılır)
     if val_strategy:
         val_name = VAL_TR.get(val_strategy, val_strategy)
         if "test_size" in data_split_params:
@@ -1178,7 +1178,7 @@ with st.container(border=True):
         else:
             split_desc = val_name
     else:
-        split_desc = "Bölümleme belirtilmedi"
+        split_desc = None
 
     # Hiperparametre özeti (mode == tune ise)
     s_sampler = TUNING_SAMPLER_TR.get(tuning_sampler, tuning_sampler or "-")
@@ -1186,7 +1186,7 @@ with st.container(border=True):
     s_trials = f"{tuning_trials} deneme"
     s_metric = f"Hedef: {tuning_scoring}" if tuning_scoring else "Varsayılan hedef"
 
-    # Önişleme özeti
+    # Önişleme özeti - Yalnızca seçilen/etkinleştirilen adımlar
     prep_summary_items = []
     if preprocess_payload:
         if preprocess_payload.get("handle_missing"):
@@ -1203,22 +1203,16 @@ with st.container(border=True):
             scale_m = preprocess_payload.get("scale_method")
             scale_label = PREP_TR.get(scale_m, scale_m.title() if scale_m else "Scaling")
             prep_summary_items.append(scale_label if ("Scaler" in scale_label or "Ölçeklendirme" in scale_label) else f"{scale_label} Ölçeklendirme")
-    if not prep_summary_items:
-        prep_summary_items = ["Ek önişleme uygulanmıyor"]
 
-    # Veri Analizi özeti (seçilen fonksiyonların listesi)
+    # Veri Analizi özeti - Yalnızca seçilen fonksiyonlar
     active_da_items = []
     if data_analyze_payload and "data_analyze_functions" in data_analyze_payload:
         da_fns = data_analyze_payload.get("data_analyze_functions", [])
         for item in da_fns:
             if isinstance(item, dict) and item.get("enabled"):
                 active_da_items.append(str(item.get("f", "")).replace("_", " ").title())
-        if not active_da_items:
-            active_da_items = ["Seçili analiz adımı yok"]
-    else:
-        active_da_items = ["Uygulanmıyor"]
 
-    # Değerlendirme özeti (seçilen metriklerin listesi)
+    # Değerlendirme özeti - Yalnızca seçilen metrikler
     active_eval_items = []
     if evaluation_payload and isinstance(evaluation_payload, dict):
         eval_items = []
@@ -1229,17 +1223,11 @@ with st.container(border=True):
         for item in eval_items:
             if isinstance(item, dict) and item.get("enabled"):
                 active_eval_items.append(str(item.get("f", "")).replace("_", " ").title())
-        if not active_eval_items:
-            active_eval_items = ["Seçili metrik yok"]
-    else:
-        active_eval_items = ["Uygulanmıyor"]
 
-    # Görselleştirme özeti (seçilen grafiklerin listesi)
+    # Görselleştirme özeti - Yalnızca grafikler açıksa ve seçilmişse
     active_vis_items = []
     if visualization_payload and isinstance(visualization_payload, dict):
-        if visualization_payload.get("show_plots") is False:
-            active_vis_items = ["Grafik üretimi kapalı"]
-        else:
+        if visualization_payload.get("show_plots") is not False:
             for k_vis, v_vis in visualization_payload.items():
                 if k_vis == "show_plots":
                     continue
@@ -1247,10 +1235,6 @@ with st.container(border=True):
                     for item in v_vis:
                         if isinstance(item, dict) and item.get("enabled"):
                             active_vis_items.append(str(item.get("f", "")).replace("_", " ").title())
-            if not active_vis_items:
-                active_vis_items = ["Seçili grafik yok"]
-    else:
-        active_vis_items = ["Uygulanmıyor"]
 
     # 1. Satır: Temel Kapsam, Model, Çalışma Modu ve Hiperparametre
     if selected_mode == "tune":
@@ -1262,48 +1246,50 @@ with st.container(border=True):
     with c_vg:
         st.markdown("**📁 Veri & Görev**")
         st.markdown(f"**{ds_display}**")
-        st.caption(f"{task_label} · {lt_label}")
+        st.markdown(f"{task_label} · {lt_label}")
 
     with c_md:
         st.markdown("**🤖 Model**")
         st.markdown(f"**{algo_name_display}**")
-        st.caption(preset_label)
+        if preset:
+            st.markdown(f"{preset_label}")
 
     with c_wk:
         st.markdown("**⚙️ Çalışma**")
         st.markdown(f"**{mode_label}**")
-        st.caption(split_desc)
+        if split_desc:
+            st.markdown(f"{split_desc}")
 
     if c_tn:
         with c_tn:
             st.markdown("**⚡ Hiperparametre**")
             st.markdown(f"**{s_sampler}**")
-            st.caption(f"{s_pruner} · {s_trials}\n\n{s_metric}")
+            st.markdown(f"{s_pruner} · {s_trials}\n\n{s_metric}")
 
     st.divider()
 
-    # 2. Satır: Boru Hattı Bileşenleri (Seçilenleri doğrudan listeleyen yapı)
+    # 2. Satır: Boru Hattı Bileşenleri (Yalnızca seçilenler net olarak yazılır)
     c_pr, c_da, c_ev, c_vi = st.columns(4)
 
     with c_pr:
         st.markdown("**🛠️ Önişleme**")
         for p_item in prep_summary_items:
-            st.markdown(f"<span style='font-size: 0.9rem; color: #334155;'>• {p_item}</span>", unsafe_allow_html=True)
+            st.markdown(f"• {p_item}")
 
     with c_da:
         st.markdown("**📊 Veri Analizi**")
         for da_item in active_da_items:
-            st.markdown(f"<span style='font-size: 0.9rem; color: #334155;'>• {da_item}</span>", unsafe_allow_html=True)
+            st.markdown(f"• {da_item}")
 
     with c_ev:
         st.markdown("**📈 Değerlendirme**")
         for ev_item in active_eval_items:
-            st.markdown(f"<span style='font-size: 0.9rem; color: #334155;'>• {ev_item}</span>", unsafe_allow_html=True)
+            st.markdown(f"• {ev_item}")
 
     with c_vi:
         st.markdown("**📉 Görselleştirme**")
         for vi_item in active_vis_items:
-            st.markdown(f"<span style='font-size: 0.9rem; color: #334155;'>• {vi_item}</span>", unsafe_allow_html=True)
+            st.markdown(f"• {vi_item}")
 
 # Developer Payload Expander
 with st.expander("🔍 Geliştirici & API İstek Yükü (Canonical JSON Payload)", expanded=False):
