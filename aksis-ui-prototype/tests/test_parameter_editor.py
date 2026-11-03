@@ -1141,124 +1141,147 @@ def test_data_analyze_capability_and_payload_behavior():
 def test_evaluation_capability_and_payload_behavior():
     """
     Verifies that:
-    1. Evaluation defaults come from evaluation.<learning_type>.defaults.
-    2. Metric/function names are not hardcoded in frontend.
-    3. Checkbox defaults come from each item's 'enabled'.
-    4. Only task-relevant evaluation fields are rendered/sent (classification vs regression vs anomaly).
-    5. Canonical 'f' values remain unchanged.
-    6. Canonical evaluation field names remain unchanged (cls_evaluation, reg_evaluation, etc.).
-    7. Arbitrary future evaluation functions can appear through capability without frontend code changes.
-    8. Missing capability does not fabricate metrics.
+    1. Evaluation capability is task-based.
+    2. Classification returns cls_evaluation.
+    3. Regression returns reg_evaluation.
+    4. Anomaly detection returns ano_evaluation.
+    5. Frontend reads field from capabilities.
+    6. Frontend does not hardcode task -> evaluation field mapping.
+    7. Canonical f values remain unchanged.
+    8. Arbitrary future evaluation items work without frontend changes.
+    9. Missing task capability does not fabricate metrics.
     """
     caps = {
         "evaluation": {
-            "supervised": {
-                "defaults": {
-                    "cls_evaluation": [
-                        {"f": "accuracy", "enabled": True},
-                        {"f": "f1_score", "enabled": True},
-                        {"f": "future_custom_metric", "enabled": False},
-                    ],
-                    "reg_evaluation": [
-                        {"f": "mae", "enabled": True},
-                        {"f": "rmse", "enabled": True},
-                    ]
-                }
+            "classification": {
+                "field": "cls_evaluation",
+                "items": [
+                    {"f": "accuracy", "enabled": True},
+                    {"f": "f1_score", "enabled": True},
+                    {"f": "future_custom_metric", "enabled": False},
+                ]
             },
-            "unsupervised": {
-                "defaults": {
-                    "ano_evaluation": [
-                        {"f": "silhouette_score", "enabled": True},
-                        {"f": "anomaly_score", "enabled": False},
-                    ]
-                }
+            "regression": {
+                "field": "reg_evaluation",
+                "items": [
+                    {"f": "mae", "enabled": True},
+                    {"f": "rmse", "enabled": True},
+                ]
+            },
+            "anomaly_detection": {
+                "field": "ano_evaluation",
+                "items": [
+                    {"f": "silhouette_score", "enabled": True},
+                    {"f": "anomaly_score", "enabled": False},
+                ]
             }
         }
     }
 
-    # Simulation helper matching 3_experiment_config.py logic
-    def build_eval_payload(learning_type, task, capabilities, toggles=None):
+    # 1. Evaluation capability is task-based (keyed by task names)
+    eval_caps = caps["evaluation"]
+    assert "supervised" not in eval_caps
+    assert "unsupervised" not in eval_caps
+    assert "classification" in eval_caps
+    assert "regression" in eval_caps
+    assert "anomaly_detection" in eval_caps
+
+    # 2, 3, 4. Each task declares its canonical field
+    assert eval_caps["classification"]["field"] == "cls_evaluation"
+    assert eval_caps["regression"]["field"] == "reg_evaluation"
+    assert eval_caps["anomaly_detection"]["field"] == "ano_evaluation"
+
+    # Frontend reading logic simulation
+    def build_eval_payload(task, capabilities, toggles=None):
         toggles = toggles or {}
         evaluation_caps = capabilities.get("evaluation", {})
-        evaluation_group = evaluation_caps.get(learning_type, {})
-        evaluation_defaults = evaluation_group.get("defaults", {})
+        evaluation_task = evaluation_caps.get(task, {})
 
-        target_key = None
-        if task == "classification":
-            target_key = "cls_evaluation" if "cls_evaluation" in evaluation_defaults else None
-        elif task == "regression":
-            target_key = "reg_evaluation" if "reg_evaluation" in evaluation_defaults else None
-        elif learning_type == "unsupervised" or task == "anomaly_detection":
-            target_key = "ano_evaluation" if "ano_evaluation" in evaluation_defaults else None
+        # 5 & 6. Frontend reads field dynamically from capabilities without hardcoding mapping
+        evaluation_field = evaluation_task.get("field")
+        evaluation_items = evaluation_task.get("items", [])
 
-        if not target_key:
+        if not evaluation_field or not evaluation_items:
             return None
 
-        items = evaluation_defaults.get(target_key, [])
         payload_items = []
-        for item in items:
-            fn_name = item["f"]
+        for item in evaluation_items:
+            # 7. Canonical 'f' values remain unchanged
+            fn_name = str(item.get("f", ""))
             fn_enabled = bool(item.get("enabled", True))
             current_val = toggles.get(fn_name, fn_enabled)
             payload_items.append({
                 "f": fn_name,
                 "enabled": bool(current_val)
             })
-        return {target_key: payload_items} if payload_items else None
+        return {evaluation_field: payload_items}
 
     # Case 1: Classification task
-    cls_payload = build_eval_payload("supervised", "classification", caps)
+    cls_payload = build_eval_payload("classification", caps)
     assert "cls_evaluation" in cls_payload
     assert "reg_evaluation" not in cls_payload
-    # 2 & 7. Arbitrary future metric supported dynamically
+    # 8. Arbitrary future metric supported dynamically
     assert [x["f"] for x in cls_payload["cls_evaluation"]] == ["accuracy", "f1_score", "future_custom_metric"]
-    # 3. Default from capability
     assert cls_payload["cls_evaluation"][2]["enabled"] is False
 
-    # 4 & 5. Toggling preserves canonical 'f' and modifies only 'enabled'
+    # Toggling test
     cls_payload_toggled = build_eval_payload(
-        "supervised", "classification", caps,
+        "classification", caps,
         toggles={"accuracy": False, "future_custom_metric": True}
     )
     assert cls_payload_toggled["cls_evaluation"][0] == {"f": "accuracy", "enabled": False}
     assert cls_payload_toggled["cls_evaluation"][2] == {"f": "future_custom_metric", "enabled": True}
 
     # Case 2: Regression task
-    reg_payload = build_eval_payload("supervised", "regression", caps)
+    reg_payload = build_eval_payload("regression", caps)
     assert "reg_evaluation" in reg_payload
     assert "cls_evaluation" not in reg_payload
     assert [x["f"] for x in reg_payload["reg_evaluation"]] == ["mae", "rmse"]
 
-    # Case 3: Unsupervised anomaly detection task
-    ano_payload = build_eval_payload("unsupervised", "anomaly_detection", caps)
+    # Case 3: Anomaly detection task
+    ano_payload = build_eval_payload("anomaly_detection", caps)
     assert "ano_evaluation" in ano_payload
     assert "cls_evaluation" not in ano_payload
     assert "reg_evaluation" not in ano_payload
     assert [x["f"] for x in ano_payload["ano_evaluation"]] == ["silhouette_score", "anomaly_score"]
 
-    # 8. Missing capability does not fabricate metrics
-    empty_caps = {"evaluation": {"supervised": {"defaults": {}}}}
-    empty_payload = build_eval_payload("supervised", "classification", empty_caps)
-    assert empty_payload is None
+    # 8b. Arbitrary future task with custom field works without frontend changes
+    future_caps = {
+        "evaluation": {
+            "future_task": {
+                "field": "custom_eval_field",
+                "items": [{"f": "custom_kpi", "enabled": True}]
+            }
+        }
+    }
+    future_payload = build_eval_payload("future_task", future_caps)
+    assert future_payload == {"custom_eval_field": [{"f": "custom_kpi", "enabled": True}]}
+
+    # 9. Missing task capability does not fabricate metrics
+    empty_caps = {"evaluation": {}}
+    assert build_eval_payload("classification", empty_caps) is None
+    assert build_eval_payload("unknown_task", caps) is None
 
 
 def test_visualization_capability_and_payload_behavior():
     """
     Verifies that:
-    9. Visualization defaults come from visualization.<learning_type>.defaults.
-    10. show_plots comes from capability.
-    11. show_plots=False hides/disables controls logically, preserving schema.
-    12. Visualization function names are not hardcoded.
-    13. Checkbox defaults come from each item's 'enabled'.
-    14. Only context-relevant visualization groups are rendered/sent.
-    15. Canonical list names and 'f' values remain unchanged.
-    16. Arbitrary future plots can appear through capability without frontend code changes.
-    17. Missing capability does not fabricate plots.
+    10. show_plots, pretrain_list, and tuning_list exist only once per algorithm family under common.
+    11. Classification receives only its task-specific posttrain group.
+    12. Regression receives only its task-specific posttrain group.
+    13. Anomaly detection receives only its task-specific posttrain group.
+    14. Frontend contains no 'cla'/'reg'/'ano' field-name heuristic filtering.
+    15. tuning_list is controlled only by experiment mode.
+    16. tuning_list is excluded in train mode.
+    17. tuning_list is included in tune mode.
+    18. show_plots=False continues to work.
+    19. Canonical list names remain unchanged.
+    20. Arbitrary future task-specific groups can render through capability structure.
     """
     caps = {
         "visualization": {
             "supervised": {
-                "defaults": {
+                "common": {
                     "show_plots": True,
                     "pretrain_list": [
                         {"f": "pairplot", "enabled": True},
@@ -1267,47 +1290,88 @@ def test_visualization_capability_and_payload_behavior():
                     "tuning_list": [
                         {"f": "optimization_history", "enabled": True},
                     ],
-                    "cla_posttrain_list": [
-                        {"f": "confusion_matrix", "enabled": True},
+                },
+                "tasks": {
+                    "classification": {
+                        "cla_posttrain_list": [
+                            {"f": "confusion_matrix", "enabled": True},
+                            {"f": "roc_curve", "enabled": True},
+                        ],
+                    },
+                    "regression": {
+                        "reg_posttrain_list": [
+                            {"f": "residual_plot", "enabled": True},
+                        ],
+                    },
+                },
+            },
+            "unsupervised": {
+                "common": {
+                    "show_plots": True,
+                    "pretrain_list": [
+                        {"f": "pairplot", "enabled": True},
                     ],
-                    "reg_posttrain_list": [
-                        {"f": "residual_plot", "enabled": True},
-                    ]
-                }
-            }
+                    "tuning_list": [
+                        {"f": "optimization_history", "enabled": True},
+                    ],
+                },
+                "tasks": {
+                    "anomaly_detection": {
+                        "ano_posttrain_list": [
+                            {"f": "anomaly_score_histogram", "enabled": True},
+                        ],
+                    },
+                },
+            },
         }
     }
 
-    # Simulation helper matching 3_experiment_config.py logic
+    # 10. Common fields exist only under 'common', not duplicated per task
+    sup_vis = caps["visualization"]["supervised"]
+    assert "common" in sup_vis
+    assert "tasks" in sup_vis
+    assert "show_plots" in sup_vis["common"]
+    assert "pretrain_list" in sup_vis["common"]
+    assert "tuning_list" in sup_vis["common"]
+    assert "show_plots" not in sup_vis["tasks"]["classification"]
+    assert "pretrain_list" not in sup_vis["tasks"]["classification"]
+
+    # Simulation helper matching 3_experiment_config.py logic (no substring heuristics)
     def build_vis_payload(learning_type, task, mode, capabilities, show_plots_override=None, toggles=None):
         toggles = toggles or {}
         visualization_caps = capabilities.get("visualization", {})
         visualization_group = visualization_caps.get(learning_type, {})
-        visualization_defaults = visualization_group.get("defaults", {})
 
-        has_show_plots_key = "show_plots" in visualization_defaults
-        def_show_plots = bool(visualization_defaults.get("show_plots", True)) if has_show_plots_key else True
+        common_visualization = visualization_group.get("common", {})
+        tasks_visualization = visualization_group.get("tasks", {})
+        task_visualization = tasks_visualization.get(task, {})
+
+        if not common_visualization and not task_visualization:
+            return None
+
+        has_show_plots_key = "show_plots" in common_visualization
+        def_show_plots = bool(common_visualization.get("show_plots", True)) if has_show_plots_key else True
         ui_show_plots = show_plots_override if show_plots_override is not None else def_show_plots
 
-        relevant_groups = {}
-        for k, v in visualization_defaults.items():
-            if k == "show_plots" or not isinstance(v, list):
-                continue
-            if ("cla" in k or "classification" in k) and task != "classification":
-                continue
-            if ("reg" in k or "regression" in k) and task != "regression":
-                continue
-            if ("ano" in k or "anomaly" in k) and task != "anomaly_detection":
-                continue
-            if "tuning" in k and mode != "tune":
-                continue
-            relevant_groups[k] = v
+        groups_to_process = {}
+        if "pretrain_list" in common_visualization and isinstance(common_visualization["pretrain_list"], list):
+            groups_to_process["pretrain_list"] = common_visualization["pretrain_list"]
+
+        # 15, 16, 17. tuning_list controlled only by mode (not task heuristics)
+        if mode == "tune" and "tuning_list" in common_visualization and isinstance(common_visualization["tuning_list"], list):
+            groups_to_process["tuning_list"] = common_visualization["tuning_list"]
+
+        # Task-specific groups rendered directly from task_visualization without 'cla'/'reg'/'ano' checks
+        if isinstance(task_visualization, dict):
+            for field_name, items in task_visualization.items():
+                if isinstance(items, list):
+                    groups_to_process[field_name] = items
 
         vis_payload_dict = {}
         if has_show_plots_key:
             vis_payload_dict["show_plots"] = bool(ui_show_plots)
 
-        for group_key, items in relevant_groups.items():
+        for group_key, items in groups_to_process.items():
             group_payload_items = []
             for item in items:
                 fn_name = str(item.get("f", ""))
@@ -1321,41 +1385,55 @@ def test_visualization_capability_and_payload_behavior():
 
         return vis_payload_dict if vis_payload_dict else None
 
-    # Case 1: Supervised Classification in train mode
+    # 11, 14, 16, 19. Supervised Classification in train mode
     vis_train = build_vis_payload("supervised", "classification", "train", caps)
     assert vis_train["show_plots"] is True
-    # 14. Context relevant: cla_posttrain_list and pretrain_list included; reg and tuning excluded
-    assert "cla_posttrain_list" in vis_train
     assert "pretrain_list" in vis_train
+    assert "cla_posttrain_list" in vis_train
     assert "reg_posttrain_list" not in vis_train
-    assert "tuning_list" not in vis_train
-    # 16. Future plot supported
-    assert any(x["f"] == "future_radar_chart" for x in vis_train["pretrain_list"])
+    assert "ano_posttrain_list" not in vis_train
+    assert "tuning_list" not in vis_train  # Excluded in train mode
 
-    # Case 2: Supervised Regression in tune mode
+    # 12, 17. Supervised Regression in tune mode
     vis_tune = build_vis_payload("supervised", "regression", "tune", caps)
+    assert vis_tune["show_plots"] is True
+    assert "pretrain_list" in vis_tune
     assert "reg_posttrain_list" in vis_tune
-    assert "tuning_list" in vis_tune
+    assert "tuning_list" in vis_tune  # Included in tune mode
     assert "cla_posttrain_list" not in vis_tune
 
-    # Case 3: show_plots == False preserves schema with defaults
+    # 13. Anomaly detection receives only its task-specific posttrain group
+    vis_ano = build_vis_payload("unsupervised", "anomaly_detection", "train", caps)
+    assert "ano_posttrain_list" in vis_ano
+    assert "cla_posttrain_list" not in vis_ano
+    assert "reg_posttrain_list" not in vis_ano
+
+    # 18. show_plots=False continues to work
     vis_disabled = build_vis_payload("supervised", "classification", "train", caps, show_plots_override=False)
     assert vis_disabled["show_plots"] is False
     assert "cla_posttrain_list" in vis_disabled
     assert "pretrain_list" in vis_disabled
-    assert "enabled" not in vis_disabled  # No artificial master enabled field invented
+    assert "enabled" not in vis_disabled
 
-    # Case 4: Missing capabilities does not fabricate plots
-    empty_vis_caps = {"visualization": {"supervised": {"defaults": {}}}}
-    assert build_vis_payload("supervised", "classification", "train", empty_vis_caps) is None
-
-
-
-
-
-
-
-
-
-
-
+    # 20. Arbitrary future task-specific groups render through capability structure
+    future_vis_caps = {
+        "visualization": {
+            "supervised": {
+                "common": {
+                    "show_plots": True,
+                    "pretrain_list": [{"f": "custom_preplot", "enabled": True}],
+                },
+                "tasks": {
+                    "ranking": {
+                        "rank_posttrain_list": [{"f": "ndcg_curve", "enabled": True}],
+                        "future_group": [{"f": "future_plot", "enabled": False}],
+                    }
+                }
+            }
+        }
+    }
+    vis_future = build_vis_payload("supervised", "ranking", "train", future_vis_caps)
+    assert "rank_posttrain_list" in vis_future
+    assert "future_group" in vis_future
+    assert vis_future["rank_posttrain_list"] == [{"f": "ndcg_curve", "enabled": True}]
+    assert vis_future["future_group"] == [{"f": "future_plot", "enabled": False}]

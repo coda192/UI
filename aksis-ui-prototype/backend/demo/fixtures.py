@@ -546,36 +546,37 @@ CAPABILITIES = CapabilityResponse(
         }
     },
     evaluation={
-        "supervised": {
-            "defaults": {
-                "cls_evaluation": [
-                    {"f": "accuracy", "enabled": True},
-                    {"f": "f1_score", "enabled": True},
-                    {"f": "precision", "enabled": True},
-                    {"f": "recall", "enabled": True},
-                    {"f": "roc_auc", "enabled": True},
-                ],
-                "reg_evaluation": [
-                    {"f": "mae", "enabled": True},
-                    {"f": "mse", "enabled": False},
-                    {"f": "rmse", "enabled": True},
-                    {"f": "r2", "enabled": True},
-                    {"f": "mape", "enabled": False},
-                ],
-            }
+        "classification": {
+            "field": "cls_evaluation",
+            "items": [
+                {"f": "accuracy", "enabled": True},
+                {"f": "f1_score", "enabled": True},
+                {"f": "precision", "enabled": True},
+                {"f": "recall", "enabled": True},
+                {"f": "roc_auc", "enabled": True},
+            ],
         },
-        "unsupervised": {
-            "defaults": {
-                "ano_evaluation": [
-                    {"f": "silhouette_score", "enabled": True},
-                    {"f": "anomaly_score", "enabled": True},
-                ]
-            }
-        }
+        "regression": {
+            "field": "reg_evaluation",
+            "items": [
+                {"f": "mae", "enabled": True},
+                {"f": "mse", "enabled": False},
+                {"f": "rmse", "enabled": True},
+                {"f": "r2", "enabled": True},
+                {"f": "mape", "enabled": False},
+            ],
+        },
+        "anomaly_detection": {
+            "field": "ano_evaluation",
+            "items": [
+                {"f": "silhouette_score", "enabled": True},
+                {"f": "anomaly_score", "enabled": True},
+            ],
+        },
     },
     visualization={
         "supervised": {
-            "defaults": {
+            "common": {
                 "show_plots": True,
                 "pretrain_list": [
                     {"f": "pairplot", "enabled": True},
@@ -586,19 +587,25 @@ CAPABILITIES = CapabilityResponse(
                     {"f": "optimization_history", "enabled": True},
                     {"f": "param_importances", "enabled": True},
                 ],
-                "cla_posttrain_list": [
-                    {"f": "confusion_matrix", "enabled": True},
-                    {"f": "roc_curve", "enabled": True},
-                    {"f": "pr_curve", "enabled": False},
-                ],
-                "reg_posttrain_list": [
-                    {"f": "residual_plot", "enabled": True},
-                    {"f": "prediction_error_plot", "enabled": True},
-                ],
-            }
+            },
+            "tasks": {
+                "classification": {
+                    "cla_posttrain_list": [
+                        {"f": "confusion_matrix", "enabled": True},
+                        {"f": "roc_curve", "enabled": True},
+                        {"f": "pr_curve", "enabled": False},
+                    ],
+                },
+                "regression": {
+                    "reg_posttrain_list": [
+                        {"f": "residual_plot", "enabled": True},
+                        {"f": "prediction_error_plot", "enabled": True},
+                    ],
+                },
+            },
         },
         "unsupervised": {
-            "defaults": {
+            "common": {
                 "show_plots": True,
                 "pretrain_list": [
                     {"f": "pairplot", "enabled": True},
@@ -606,12 +613,16 @@ CAPABILITIES = CapabilityResponse(
                 "tuning_list": [
                     {"f": "optimization_history", "enabled": True},
                 ],
-                "ano_posttrain_list": [
-                    {"f": "anomaly_score_histogram", "enabled": True},
-                    {"f": "anomaly_cluster_scatter", "enabled": True},
-                ],
-            }
-        }
+            },
+            "tasks": {
+                "anomaly_detection": {
+                    "ano_posttrain_list": [
+                        {"f": "anomaly_score_histogram", "enabled": True},
+                        {"f": "anomaly_cluster_scatter", "enabled": True},
+                    ],
+                },
+            },
+        },
     },
     algorithm_metadata=ALGORITHM_METADATA,
     parameter_schema=PARAMETER_SCHEMA

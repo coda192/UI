@@ -267,22 +267,47 @@ KNOWN_ERROR_CODES: Dict[tuple, Dict[str, str]] = {
         "empty": "CAP-EVAL-001",
         "invalid": "CAP-EVAL-001"
     },
-    ("evaluation", "supervised"): {
+    ("evaluation", "classification"): {
         "missing": "CAP-EVAL-002",
         "empty": "CAP-EVAL-002",
         "invalid": "CAP-EVAL-002"
     },
-    ("evaluation", "supervised", "defaults"): {
+    ("evaluation", "regression"): {
+        "missing": "CAP-EVAL-002",
+        "empty": "CAP-EVAL-002",
+        "invalid": "CAP-EVAL-002"
+    },
+    ("evaluation", "anomaly_detection"): {
+        "missing": "CAP-EVAL-002",
+        "empty": "CAP-EVAL-002",
+        "invalid": "CAP-EVAL-002"
+    },
+    ("evaluation", "classification", "field"): {
         "missing": "CAP-EVAL-003",
         "empty": "CAP-EVAL-003",
         "invalid": "CAP-EVAL-003"
     },
-    ("evaluation", "unsupervised"): {
-        "missing": "CAP-EVAL-002",
-        "empty": "CAP-EVAL-002",
-        "invalid": "CAP-EVAL-002"
+    ("evaluation", "classification", "items"): {
+        "missing": "CAP-EVAL-003",
+        "empty": "CAP-EVAL-003",
+        "invalid": "CAP-EVAL-003"
     },
-    ("evaluation", "unsupervised", "defaults"): {
+    ("evaluation", "regression", "field"): {
+        "missing": "CAP-EVAL-003",
+        "empty": "CAP-EVAL-003",
+        "invalid": "CAP-EVAL-003"
+    },
+    ("evaluation", "regression", "items"): {
+        "missing": "CAP-EVAL-003",
+        "empty": "CAP-EVAL-003",
+        "invalid": "CAP-EVAL-003"
+    },
+    ("evaluation", "anomaly_detection", "field"): {
+        "missing": "CAP-EVAL-003",
+        "empty": "CAP-EVAL-003",
+        "invalid": "CAP-EVAL-003"
+    },
+    ("evaluation", "anomaly_detection", "items"): {
         "missing": "CAP-EVAL-003",
         "empty": "CAP-EVAL-003",
         "invalid": "CAP-EVAL-003"
@@ -298,17 +323,27 @@ KNOWN_ERROR_CODES: Dict[tuple, Dict[str, str]] = {
         "empty": "CAP-VIS-002",
         "invalid": "CAP-VIS-002"
     },
-    ("visualization", "supervised", "defaults"): {
-        "missing": "CAP-VIS-003",
-        "empty": "CAP-VIS-003",
-        "invalid": "CAP-VIS-003"
-    },
     ("visualization", "unsupervised"): {
         "missing": "CAP-VIS-002",
         "empty": "CAP-VIS-002",
         "invalid": "CAP-VIS-002"
     },
-    ("visualization", "unsupervised", "defaults"): {
+    ("visualization", "supervised", "common"): {
+        "missing": "CAP-VIS-003",
+        "empty": "CAP-VIS-003",
+        "invalid": "CAP-VIS-003"
+    },
+    ("visualization", "supervised", "tasks"): {
+        "missing": "CAP-VIS-003",
+        "empty": "CAP-VIS-003",
+        "invalid": "CAP-VIS-003"
+    },
+    ("visualization", "unsupervised", "common"): {
+        "missing": "CAP-VIS-003",
+        "empty": "CAP-VIS-003",
+        "invalid": "CAP-VIS-003"
+    },
+    ("visualization", "unsupervised", "tasks"): {
         "missing": "CAP-VIS-003",
         "empty": "CAP-VIS-003",
         "invalid": "CAP-VIS-003"

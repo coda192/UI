@@ -964,86 +964,50 @@ if eval_applicable:
         st.caption("Model performansını ölçmek için kullanılacak değerlendirme metriklerini belirleyin.")
 
         evaluation_caps = capabilities.get("evaluation", {}) if isinstance(capabilities, dict) else {}
-        evaluation_group = evaluation_caps.get(learning_type, {}) if isinstance(evaluation_caps, dict) else {}
-        evaluation_defaults = evaluation_group.get("defaults", {}) if isinstance(evaluation_group, dict) else {}
+        evaluation_task = evaluation_caps.get(task, {}) if isinstance(evaluation_caps, dict) else {}
+
+        evaluation_field = evaluation_task.get("field")
+        evaluation_items = evaluation_task.get("items", [])
 
         diag_eval_root = validate_capability_path(capabilities, path=("evaluation",), required=True, allow_empty=False)
-        diag_eval_group = validate_capability_path(capabilities, path=("evaluation", learning_type), required=True, allow_empty=False)
-        diag_eval_defaults = validate_capability_path(capabilities, path=("evaluation", learning_type, "defaults"), required=True, allow_empty=False)
+        diag_eval_task = validate_capability_path(capabilities, path=("evaluation", task), required=True, allow_empty=False)
+        diag_eval_field = validate_capability_path(capabilities, path=("evaluation", task, "field"), required=True, allow_empty=False)
+        diag_eval_items = validate_capability_path(capabilities, path=("evaluation", task, "items"), required=True, allow_empty=False)
 
         if not diag_eval_root:
             st.warning(f"Değerlendirme yetenek tanımı eksik: {diag_eval_root}")
-        elif not diag_eval_group:
-            st.warning(f"'{learning_type}' için değerlendirme yetenekleri bulunamadı: {diag_eval_group}")
-        elif not diag_eval_defaults:
-            st.warning(f"Değerlendirme varsayılanları bulunamadı: {diag_eval_defaults}")
+        elif not diag_eval_task:
+            st.warning(f"'{task}' görevi için değerlendirme yetenekleri bulunamadı: {diag_eval_task}")
+        elif not diag_eval_field:
+            st.warning(f"Değerlendirme alan adı eksik: {diag_eval_field}")
+        elif not diag_eval_items:
+            st.warning(f"Değerlendirme metrikleri bulunamadı: {diag_eval_items}")
         else:
-            # Determine the task-relevant evaluation list key
-            target_key = None
-            if task == "classification":
-                if "cls_evaluation" in evaluation_defaults:
-                    target_key = "cls_evaluation"
-                else:
-                    for k in evaluation_defaults:
-                        if "cls" in k or "classification" in k:
-                            target_key = k
-                            break
-            elif task == "regression":
-                if "reg_evaluation" in evaluation_defaults:
-                    target_key = "reg_evaluation"
-                else:
-                    for k in evaluation_defaults:
-                        if "reg" in k or "regression" in k:
-                            target_key = k
-                            break
-            elif learning_type == "unsupervised" or task == "anomaly_detection":
-                if "ano_evaluation" in evaluation_defaults:
-                    target_key = "ano_evaluation"
-                elif "unsupervised_evaluation" in evaluation_defaults:
-                    target_key = "unsupervised_evaluation"
-                elif "anomaly_evaluation" in evaluation_defaults:
-                    target_key = "anomaly_evaluation"
-                else:
-                    for k in evaluation_defaults:
-                        if "ano" in k or "anomaly" in k:
-                            target_key = k
-                            break
+            eval_payload_items = []
+            cols = st.columns(min(len(evaluation_items), 3) if len(evaluation_items) > 1 else 1)
+            for idx, item in enumerate(evaluation_items):
+                if not isinstance(item, dict):
+                    continue
+                fn_name = str(item.get("f", ""))
+                fn_enabled = bool(item.get("enabled", True))
+                fn_label = fn_name.replace("_", " ").title()
 
-            if not target_key:
-                for k, v in evaluation_defaults.items():
-                    if isinstance(v, list):
-                        target_key = k
-                        break
+                with cols[idx % len(cols)]:
+                    val = st.checkbox(
+                        fn_label,
+                        value=fn_enabled,
+                        key=f"eval_fn_{evaluation_field}_{fn_name}",
+                        help=f"`{fn_name}` metriğini hesapla."
+                    )
+                    eval_payload_items.append({
+                        "f": fn_name,
+                        "enabled": bool(val)
+                    })
 
-            eval_items = evaluation_defaults.get(target_key, []) if target_key else []
-            if not eval_items:
-                st.info(f"'{task}' görevi için yapılandırılabilir değerlendirme metriği bulunamadı.")
-            else:
-                eval_payload_items = []
-                cols = st.columns(min(len(eval_items), 3) if len(eval_items) > 1 else 1)
-                for idx, item in enumerate(eval_items):
-                    if not isinstance(item, dict):
-                        continue
-                    fn_name = str(item.get("f", ""))
-                    fn_enabled = bool(item.get("enabled", True))
-                    fn_label = fn_name.replace("_", " ").title()
-
-                    with cols[idx % len(cols)]:
-                        val = st.checkbox(
-                            fn_label,
-                            value=fn_enabled,
-                            key=f"eval_fn_{target_key}_{fn_name}",
-                            help=f"`{fn_name}` metriğini hesapla."
-                        )
-                        eval_payload_items.append({
-                            "f": fn_name,
-                            "enabled": bool(val)
-                        })
-
-                if target_key:
-                    evaluation_payload = {
-                        target_key: eval_payload_items
-                    }
+            if evaluation_field and eval_payload_items:
+                evaluation_payload = {
+                    evaluation_field: eval_payload_items
+                }
 
 # ==============================================================================
 # 8. GÖRSELLEŞTİRME (Visualization - Açılır/Kapanır)
@@ -1066,21 +1030,27 @@ if vis_applicable:
 
         visualization_caps = capabilities.get("visualization", {}) if isinstance(capabilities, dict) else {}
         visualization_group = visualization_caps.get(learning_type, {}) if isinstance(visualization_caps, dict) else {}
-        visualization_defaults = visualization_group.get("defaults", {}) if isinstance(visualization_group, dict) else {}
+
+        common_visualization = visualization_group.get("common", {}) if isinstance(visualization_group, dict) else {}
+        tasks_visualization = visualization_group.get("tasks", {}) if isinstance(visualization_group, dict) else {}
+        task_visualization = tasks_visualization.get(task, {}) if isinstance(tasks_visualization, dict) else {}
 
         diag_vis_root = validate_capability_path(capabilities, path=("visualization",), required=True, allow_empty=False)
         diag_vis_group = validate_capability_path(capabilities, path=("visualization", learning_type), required=True, allow_empty=False)
-        diag_vis_defaults = validate_capability_path(capabilities, path=("visualization", learning_type, "defaults"), required=True, allow_empty=False)
+        diag_vis_common = validate_capability_path(capabilities, path=("visualization", learning_type, "common"), required=True, allow_empty=False)
+        diag_vis_tasks = validate_capability_path(capabilities, path=("visualization", learning_type, "tasks"), required=True, allow_empty=False)
 
         if not diag_vis_root:
             st.warning(f"Görselleştirme yetenek tanımı eksik: {diag_vis_root}")
         elif not diag_vis_group:
             st.warning(f"'{learning_type}' için görselleştirme yetenekleri bulunamadı: {diag_vis_group}")
-        elif not diag_vis_defaults:
-            st.warning(f"Görselleştirme varsayılanları bulunamadı: {diag_vis_defaults}")
+        elif not diag_vis_common:
+            st.warning(f"Ortak görselleştirme ayarları bulunamadı: {diag_vis_common}")
+        elif not diag_vis_tasks:
+            st.warning(f"Göreve özel görselleştirme ayarları bulunamadı: {diag_vis_tasks}")
         else:
-            has_show_plots_key = "show_plots" in visualization_defaults
-            def_show_plots = bool(visualization_defaults.get("show_plots", True)) if has_show_plots_key else True
+            has_show_plots_key = "show_plots" in common_visualization
+            def_show_plots = bool(common_visualization.get("show_plots", True)) if has_show_plots_key else True
 
             if has_show_plots_key:
                 ui_show_plots = st.checkbox(
@@ -1092,28 +1062,24 @@ if vis_applicable:
             else:
                 ui_show_plots = True
 
-            # Filter relevant function groups
-            relevant_groups = {}
-            for k, v in visualization_defaults.items():
-                if k == "show_plots" or not isinstance(v, list):
-                    continue
-                # Task/mode context filtering
-                if ("cla" in k or "classification" in k) and task != "classification":
-                    continue
-                if ("reg" in k or "regression" in k) and task != "regression":
-                    continue
-                if ("ano" in k or "anomaly" in k) and task != "anomaly_detection":
-                    continue
-                if "tuning" in k and selected_mode != "tune":
-                    continue
-                relevant_groups[k] = v
-
             vis_payload_dict = {}
             if has_show_plots_key:
                 vis_payload_dict["show_plots"] = bool(ui_show_plots)
 
+            groups_to_process = {}
+            if "pretrain_list" in common_visualization and isinstance(common_visualization["pretrain_list"], list):
+                groups_to_process["pretrain_list"] = common_visualization["pretrain_list"]
+
+            if selected_mode == "tune" and "tuning_list" in common_visualization and isinstance(common_visualization["tuning_list"], list):
+                groups_to_process["tuning_list"] = common_visualization["tuning_list"]
+
+            if isinstance(task_visualization, dict):
+                for field_name, items in task_visualization.items():
+                    if isinstance(items, list):
+                        groups_to_process[field_name] = items
+
             if ui_show_plots:
-                for group_key, items in relevant_groups.items():
+                for group_key, items in groups_to_process.items():
                     group_title = group_key.replace("_", " ").title()
                     st.markdown(f"**{group_title}**")
                     group_payload_items = []
@@ -1138,7 +1104,7 @@ if vis_applicable:
                             })
                     vis_payload_dict[group_key] = group_payload_items
             else:
-                for group_key, items in relevant_groups.items():
+                for group_key, items in groups_to_process.items():
                     group_payload_items = []
                     for item in items:
                         if isinstance(item, dict):
