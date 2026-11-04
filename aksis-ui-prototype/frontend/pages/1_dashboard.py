@@ -74,8 +74,8 @@ anom_algos = algorithms_dict.get("anomaly_detection", [])
 total_algos = sum(len(v) for v in algorithms_dict.values())
 supported_modes = capabilities.get("modes", [])
 learning_types = capabilities.get("learning_types", [])
-tasks_dict = capabilities.get("tasks", {})
-total_tasks = sum(len(v) for v in tasks_dict.values())
+tasks = capabilities.get("tasks", [])
+total_tasks = len(tasks)
 
 # 1. ÜST YÖNETİCİ METRİK KARTLARI (Tümü API'den Dinamik Hesaplanır)
 m1, m2, m3, m4 = st.columns(4)
@@ -171,7 +171,11 @@ st.subheader("🔧 Önişleme, Preset ve Optimizasyon Yetenekleri")
 
 p_col1, p_col2, p_col3 = st.columns(3)
 
-prep_strats = capabilities.get("preprocessing") or capabilities.get("preprocessing_strategies", {})
+prep_caps = capabilities.get("preprocessing", {})
+numeric_imputer_methods = prep_caps.get("numeric_imputer_methods", [])
+categorical_imputer_methods = prep_caps.get("categorical_imputer_methods", [])
+encoding_methods = prep_caps.get("encoding_methods", [])
+scaling_methods = prep_caps.get("scaling_methods", [])
 raw_presets = capabilities.get("model_presets", {})
 if isinstance(raw_presets, dict):
     # Flatten unique presets across learning types for the high-level dashboard display
@@ -222,15 +226,18 @@ else:
 with p_col1:
     with st.container(border=True):
         st.markdown("#### 🩹 Önişleme Stratejileri")
-        st.caption("Eksik Değer Yönetimi:")
-        for s in prep_strats.get("missing_value", []):
-            st.write(f"- `{s}`")
+        st.caption("Sayısal Eksik Değer Yönetimi:")
+        for method in numeric_imputer_methods:
+            st.write(f"- `{method}`")
+        st.caption("Kategorik Eksik Değer Yönetimi:")
+        for method in categorical_imputer_methods:
+            st.write(f"- `{method}`")
         st.caption("Kategorik Kodlama:")
-        for s in prep_strats.get("encoding", []):
-            st.write(f"- `{s}`")
+        for method in encoding_methods:
+            st.write(f"- `{method}`")
         st.caption("Sayısal Ölçeklendirme:")
-        for s in prep_strats.get("scaling", []):
-            st.write(f"- `{s}`")
+        for method in scaling_methods:
+            st.write(f"- `{method}`")
 
 with p_col2:
     with st.container(border=True):
