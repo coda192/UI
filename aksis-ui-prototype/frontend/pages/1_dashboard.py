@@ -3,7 +3,7 @@ import pandas as pd
 from api.client import AksisAPIError
 from utils.model_guidance import get_algorithm_metadata, get_algorithm_display_name
 
-st.title("📊 Sistem Özeti & Registry Kataloğu")
+st.title("📊 Sistem Özeti & Model Kataloğu")
 st.caption("AKSIS bünyesinde kayıtlı makine öğrenmesi algoritmaları, veri setleri, önişleme yetenekleri ve deney geçmişi.")
 
 client = st.session_state.client
@@ -120,7 +120,7 @@ with col_cap3:
 
 st.divider()
 
-# 3. MODEL & ALGORİTMA KATALOĞU (Registry & Karar Destek Rehberi)
+# 3. MODEL & ALGORİTMA KATALOĞU (Model Kataloğu & Karar Destek Rehberi)
 st.subheader("📚 Model ve Algoritma Kataloğu")
 st.caption("Her algoritmanın güçlü/zayıf yönleri ve kurumsal karar destek için önerilen kullanım senaryoları.")
 

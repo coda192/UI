@@ -256,7 +256,7 @@ with st.container(border=True):
                     "Algoritma", 
                     options=available_algos,
                     format_func=lambda x: get_algorithm_display_name(x, capabilities),
-                    help="AKSIS Registry tarafından sunulan algoritmalar",
+                    help="AKSIS Model Kataloğu tarafından sunulan algoritmalar",
                     key="model_algo_select"
                 )
             with col_m2:
