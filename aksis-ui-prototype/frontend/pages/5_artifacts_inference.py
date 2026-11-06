@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 from api.client import AksisAPIError
 
-st.title("🚀 Model Artefaktları & Toplu Tahmin")
+st.title("🚀 Model Artefaktları & Inference")
 
 client = st.session_state.client
 
@@ -24,11 +24,11 @@ try:
         st.dataframe(df_art, use_container_width=True)
         
         st.divider()
-        st.header("🎯 Toplu Tahmin")
+        st.header("🎯 Inference")
         
         model_artifacts = [a for a in artifacts if a["type"] == "model"]
         if not model_artifacts:
-            st.warning("Tahmin için kullanılabilir model artefaktı bulunamadı.")
+            st.warning("Inference için kullanılabilir model artefaktı bulunamadı.")
             st.stop()
             
         datasets = client.get_datasets()
@@ -45,20 +45,20 @@ try:
             )
         with col2:
             sel_dataset = st.selectbox(
-                "Tahmin Yapılacak Veri Setini Seçin", 
+                "Inference Yapılacak Veri Setini Seçin", 
                 options=list(ds_options.keys()), 
                 format_func=lambda x: ds_options[x]
             )
         
-        if st.button("🚀 Tahminleri Üret"):
+        if st.button("🚀 Inference Çalıştır"):
             with st.spinner("Model veri seti üzerinde çalıştırılıyor..."):
                 resp = client.run_inference({
                     "artifact_id": sel_artifact,
                     "dataset_id": sel_dataset
                 })
                 
-                st.success(f"✅ Tahmin süreci tamamlandı! Toplam Tahmin Sayısı: {resp.get('total_predictions')}")
-                st.write("**Tahmin Sonuçları Önizlemesi:**")
+                st.success(f"✅ Inference süreci tamamlandı! Toplam Tahmin Sayısı: {resp.get('total_predictions')}")
+                st.write("**Inference Sonuçları:**")
                 st.dataframe(pd.DataFrame(resp.get("predictions_preview", [])), use_container_width=True)
                 
 except AksisAPIError as e:

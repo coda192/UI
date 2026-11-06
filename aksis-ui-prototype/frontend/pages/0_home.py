@@ -26,7 +26,7 @@ with kpi1:
 with kpi2:
     with st.container(border=True):
         st.markdown("### ⚡ Hızlı Geliştirme")
-        st.caption("Otomatik ön işleme, hiperparametre optimizasyonu ve modüler pipeline.")
+        st.caption("Otomatik ön işleme, hiperparametre optimizasyonu ve modüler iş akışı.")
 
 with kpi3:
     with st.container(border=True):
@@ -45,7 +45,7 @@ st.subheader("📌 Platform Vizyonu ve Amacı")
 
 with st.container(border=True):
     st.markdown("""
-    **AKSIS Framework**, kurum bünyesinde yürütülen makine öğrenmesi çalışmalarının **standartlaştırılması**, **merkezi olarak yönetilebilir hâle getirilmesi** ve kurumsal politika ile karar süreçlerinde daha etkin kullanılabilmesi amacıyla geliştirilen **modüler bir MLOps altyapısıdır**.
+    **AKSIS Platformu**, kurum bünyesinde yürütülen makine öğrenmesi çalışmalarının **standartlaştırılması**, **merkezi olarak yönetilebilir hâle getirilmesi** ve kurumsal politika ile karar süreçlerinde daha etkin kullanılabilmesi amacıyla geliştirilen **modüler bir MLOps altyapısıdır**.
 
     ---
     
@@ -57,8 +57,8 @@ with st.container(border=True):
 
 st.divider()
 
-# Kurumsal Mimari & Pipeline Akışı
-st.subheader("📐 Kurumsal Mimari & Pipeline Akışı")
+# Kurumsal Mimari ve İş Akışı
+st.subheader("📐 Kurumsal Mimari ve İş Akışı")
 
 tab_mimari, tab_akis, tab_guvenlik = st.tabs(["📊 Uçtan Uca Mimari", "🚀 4 Adımlı İş Akışı", "🛡️ Güvenlik & Standartlar"])
 
@@ -86,16 +86,16 @@ with tab_mimari:
                 D1[(Kurumsal Veri)] --> D2[DataSpec Doğrulama]
             end
             
-            subgraph PipelineLayer [⚙️ AKSIS Çekirdek Pipeline]
+            subgraph PipelineLayer [⚙️ AKSIS Çekirdek İş Akışı]
                 D2 --> P1[Önişleme & Sızıntı Önleme]
                 P1 --> P2[Model Eğitimi / Optimizasyon]
                 P2 --> P3[Optuna Hiperparametre Ayarı]
             end
             
             subgraph EvalLayer [📈 Değerlendirme & Dağıtım]
-                P3 --> E1[Metrikler & Karışıklık Matrisi]
+                P3 --> E1[Metrikler & Confusion Matrix]
                 E1 --> E2[Model Artefaktı]
-                E2 --> E3[Toplu Tahmin]
+                E2 --> E3[Inference]
             end
             
             style DataLayer fill:#0F172A,stroke:#38BDF8,stroke-width:1px,color:#FFFFFF
@@ -119,11 +119,11 @@ with tab_akis:
     with col_b:
         with st.container(border=True):
             st.markdown("#### 3. 📈 Eğitimi Başlatın & İzleyin")
-            st.write("Model eğitimini asenkron olarak çalıştırın; canlı durum takibi ile Accuracy, F1-Score, RMSE veya Anomali Skor dağılımlarını anında gözlemleyin.")
+            st.write("Model eğitimini asenkron olarak çalıştırın; canlı durum takibi ile Doğruluk, F1 Skoru, RMSE veya Anomali Skor dağılımlarını anında gözlemleyin.")
             
         with st.container(border=True):
-            st.markdown("#### 4. 🚀 Toplu Tahmin Üretin")
-            st.write("Eğitilen model çıktılarını kullanarak yeni kurumsal veri setleri üzerinde toplu çıkarımlar gerçekleştirin ve sonuçları raporlayın.")
+            st.markdown("#### 4. 🚀 Inference Çalıştırın")
+            st.write("Eğitilen model çıktılarını kullanarak yeni kurumsal veri setleri üzerinde inference gerçekleştirin ve sonuçları raporlayın.")
 
 with tab_guvenlik:
     col_g1, col_g2 = st.columns(2)
@@ -137,7 +137,7 @@ with tab_guvenlik:
     with col_g2:
         st.markdown("""
         ##### 📐 Metodolojik Doğruluk
-        * **Veri Sızıntısız Önişleme (Leakage-Safe):** Eğitim ve test kümeleri arasında veri sızıntısını engelleyen pipeline mimarisi.
-        * **Gerçek Etiket Denetimi:** Etiketsiz anomali analizlerinde yanıltıcı metrik üretimi engellenir.
+        * **Veri Sızıntısız Önişleme (Leakage-Safe):** Eğitim ve test kümeleri arasında veri sızıntısını engelleyen iş akışı mimarisi.
+        * **Ground Truth Denetimi:** Etiketsiz anomali analizlerinde Ground Truth bulunmadığı için yanıltıcı metrik üretimi engellenir.
         * **Tekrar Üretilebilirlik:** Her deney parametresi ve konfigürasyonu kayıt altına alınır.
         """)

@@ -214,16 +214,16 @@ try:
 
                     numeric_table_rows.append({
                         "Sütun Adı": c.get("name"),
-                        "Gözlem (Count)": f"{int(cnt):,}" if cnt is not None else "-",
-                        "Ortalama (Mean)": f"{mean_v:.2f}" if mean_v is not None else "-",
-                        "Std Sapma (Std)": f"{std_v:.2f}" if std_v is not None else "-",
+                        "Gözlem Sayısı": f"{int(cnt):,}" if cnt is not None else "-",
+                        "Ortalama": f"{mean_v:.2f}" if mean_v is not None else "-",
+                        "Standart Sapma": f"{std_v:.2f}" if std_v is not None else "-",
                         "Min": f"{min_v:.2f}" if min_v is not None else "-",
-                        "Q1 (%25)": f"{q1_v:.2f}" if q1_v is not None else "-",
-                        "Medyan (%50)": f"{med_v:.2f}" if med_v is not None else "-",
-                        "Q3 (%75)": f"{q3_v:.2f}" if q3_v is not None else "-",
-                        "Maks": f"{max_v:.2f}" if max_v is not None else "-",
-                        "IQR": f"{iqr_v:.2f}" if iqr_v is not None else "-",
-                        "Çarpıklık (Skewness)": f"{skew_v:.3f}" if skew_v is not None else "Hesaplanamadı",
+                        "1. Çeyrek (Q1)": f"{q1_v:.2f}" if q1_v is not None else "-",
+                        "Medyan": f"{med_v:.2f}" if med_v is not None else "-",
+                        "3. Çeyrek (Q3)": f"{q3_v:.2f}" if q3_v is not None else "-",
+                        "Maksimum": f"{max_v:.2f}" if max_v is not None else "-",
+                        "Çeyrekler Açıklığı (IQR)": f"{iqr_v:.2f}" if iqr_v is not None else "-",
+                        "Çarpıklık": f"{skew_v:.3f}" if skew_v is not None else "Hesaplanamadı",
                     })
 
                 df_numeric_stats = pd.DataFrame(numeric_table_rows)
@@ -234,7 +234,7 @@ try:
             st.divider()
 
             # 4.4. SÜTUN GEZGİNİ (Column Explorer)
-            st.markdown("#### 🔍 Sütun Gezgini (Column Explorer)")
+            st.markdown("#### 🔍 Sütun Gezgini")
             st.caption("Herhangi bir sütunu seçerek detaylı profilini, çeyrek aralıklarını ve çarpıklık yorumunu inceleyin.")
 
             if cols_list:
@@ -276,7 +276,7 @@ try:
                             with sm3:
                                 st.metric("Std Sapma", f"{std_v:.2f}" if std_v is not None else "-")
                             with sm4:
-                                st.metric("Medyan (Q2)", f"{med_v:.2f}" if med_v is not None else "-")
+                                st.metric("Medyan", f"{med_v:.2f}" if med_v is not None else "-")
                             with sm5:
                                 st.metric("IQR (Q3 - Q1)", f"{iqr_v:.2f}" if iqr_v is not None else "-")
                         else:
@@ -284,8 +284,8 @@ try:
 
                         # Sayısal Analiz Sekmeleri
                         num_tab1, num_tab2, num_tab3 = st.tabs([
-                            "📊 Çeyrek Dilimleri & IQR",
-                            "📐 Çarpıklık (Skewness)",
+                            "📊 Çeyrek Dilimleri ve IQR",
+                            "📐 Çarpıklık",
                             "📊 Histogram Dağılımı"
                         ])
 
@@ -540,7 +540,7 @@ try:
                                     st.info(f"**Yorum:** {interp_msg}")
 
                             st.caption(
-                                "ℹ️ *Çarpıklık (skewness), bir dağılımın asimetrisini tanımlarken; "
+                                "ℹ️ *Çarpıklık, bir dağılımın asimetrisini tanımlarken; "
                                 "çeyrekler (quartiles), değerlerin dağılım içindeki konumlarını ve yayılımını gösterir. "
                                 "Sıfıra yakın çarpıklık değeri normal dağılımın kesin bir kanıtı değildir.*"
                             )
@@ -576,11 +576,11 @@ try:
 
                                 hm1, hm2, hm3 = st.columns(3)
                                 with hm1:
-                                    st.metric("Histogram Kutu Sayısı (Bins)", str(n_bins))
+                                    st.metric("Histogram Aralık Sayısı", str(n_bins))
                                 with hm2:
                                     st.metric("Toplam Histogram Gözlemi", f"{sum(hist_counts):,}")
                                 with hm3:
-                                    st.metric("Değer Aralığı (Span)", f"[{hist_edges[0]:.2f}, {hist_edges[-1]:.2f}]")
+                                    st.metric("Değer Aralığı", f"[{hist_edges[0]:.2f}, {hist_edges[-1]:.2f}]")
 
                                 hover_texts = [
                                     (

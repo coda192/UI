@@ -47,7 +47,7 @@ def render_parameter_editor(
         target_col = cols[idx % 2]
         param_type = spec.get("type", "str")
         readable_label = param_name.replace("_", " ").title()
-        help_text = spec.get("description")
+        help_text = f"{param_name} — {spec.get('description')}" if spec.get("description") else f"Parametre: {param_name}"
         default_val = spec.get("default")
         widget_key = f"{key_prefix}_{param_name}"
 
@@ -58,7 +58,7 @@ def render_parameter_editor(
                 step_val = spec.get("step", 1)
 
                 val = st.number_input(
-                    label=f"{readable_label} (`{param_name}`)",
+                    label=readable_label,
                     value=int(default_val) if default_val is not None else 0,
                     min_value=int(min_val) if min_val is not None else None,
                     max_value=int(max_val) if max_val is not None else None,
@@ -76,7 +76,7 @@ def render_parameter_editor(
                 format_str = "%.4f" if (step_val and float(step_val) < 0.01) else "%.2f"
 
                 val = st.number_input(
-                    label=f"{readable_label} (`{param_name}`)",
+                    label=readable_label,
                     value=float(default_val) if default_val is not None else 0.0,
                     min_value=float(min_val) if min_val is not None else None,
                     max_value=float(max_val) if max_val is not None else None,
@@ -89,7 +89,7 @@ def render_parameter_editor(
 
             elif param_type == "bool":
                 val = st.checkbox(
-                    label=f"{readable_label} (`{param_name}`)",
+                    label=readable_label,
                     value=bool(default_val) if default_val is not None else False,
                     help=help_text,
                     key=widget_key
@@ -98,7 +98,7 @@ def render_parameter_editor(
 
             elif param_type == "str":
                 val = st.text_input(
-                    label=f"{readable_label} (`{param_name}`)",
+                    label=readable_label,
                     value=str(default_val) if default_val is not None else "",
                     help=help_text,
                     key=widget_key
@@ -116,7 +116,7 @@ def render_parameter_editor(
                     default_idx = choices.index(None)
 
                 val = st.selectbox(
-                    label=f"{readable_label} (`{param_name}`)",
+                    label=readable_label,
                     options=choices,
                     index=default_idx,
                     format_func=lambda x: "Varsayılan Yok" if x is None else str(x),
@@ -128,7 +128,7 @@ def render_parameter_editor(
             else:
                 # Bilinmeyen tipler için güvenli metin kutusu fallback'i
                 val = st.text_input(
-                    label=f"{readable_label} (`{param_name}`)",
+                    label=readable_label,
                     value=str(default_val) if default_val is not None else "",
                     help=help_text,
                     key=widget_key

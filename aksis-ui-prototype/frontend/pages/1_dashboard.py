@@ -23,7 +23,7 @@ LEARNING_TYPES_TR = {
 MODE_NAMES_TR = {
     "train": "Model Eğitimi",
     "tune": "Hiperparametre Optimizasyonu",
-    "predict": "Toplu Tahmin"
+    "predict": "Inference"
 }
 
 PRESET_NAMES_TR = {
@@ -167,7 +167,7 @@ else:
 st.divider()
 
 # 4. PREPROCESSING, PRESETS & TUNING YETENEKLERİ
-st.subheader("🔧 Önişleme, Preset ve Optimizasyon Yetenekleri")
+st.subheader("🔧 Önişleme Hattı, Model Hazır Ayarları ve Optimizasyon Yetenekleri")
 
 p_col1, p_col2, p_col3 = st.columns(3)
 
@@ -225,7 +225,7 @@ else:
 
 with p_col1:
     with st.container(border=True):
-        st.markdown("#### 🩹 Önişleme Stratejileri")
+        st.markdown("#### 🩹 Önişleme Hattı")
         st.caption("Sayısal Eksik Değer Yönetimi:")
         for method in numeric_imputer_methods:
             st.write(f"- `{method}`")

@@ -38,7 +38,7 @@ LEARNING_TYPES_TR = {
 MODE_NAMES_TR = {
     "train": "Model Eğitimi (train)",
     "tune": "Hiperparametre Optimizasyonu (tune)",
-    "predict": "Toplu Çıkarım / Tahmin (predict)"
+    "predict": "Inference (predict)"
 }
 
 PRESET_NAMES_TR = {
@@ -52,26 +52,26 @@ PRESET_NAMES_TR = {
 }
 
 PREP_TR = {
-    "none": "Uygulanmasın (none)",
-    "mean": "Ortalama Değer (mean)",
-    "median": "Medyan (median)",
-    "most_frequent": "En Sık Tekrar Eden (most_frequent)",
-    "constant": "Sabit Değer (constant)",
-    "drop": "Eksik Satırları Çıkar (drop)",
-    "onehot": "One-Hot Encoding (onehot)",
-    "frequency": "Frekans Kodlama (frequency)",
-    "hashing": "Hashing Encoding (hashing)",
-    "label": "Label Encoding (label)",
-    "target": "Target Encoding (target)",
-    "standard": "StandardScaler (standard)",
-    "minmax": "MinMaxScaler (minmax)",
-    "robust": "RobustScaler (robust)"
+    "none": "Uygulanmasın",
+    "mean": "Ortalama Değer",
+    "median": "Medyan",
+    "most_frequent": "En Sık Tekrar Eden",
+    "constant": "Sabit Değer",
+    "drop": "Eksik Satırları Çıkar",
+    "onehot": "One-Hot Kodlama",
+    "frequency": "Frekans Kodlama",
+    "hashing": "Hash Tabanlı Kodlama",
+    "label": "Etiket Kodlama",
+    "target": "Hedef Kodlama",
+    "standard": "Standart Ölçeklendirme",
+    "minmax": "Min-Max Ölçeklendirme",
+    "robust": "Dayanıklı Ölçeklendirme"
 }
 
 VAL_TR = {
-    "holdout": "Ayrık Test Kümesi (Holdout / Train-Test)",
-    "kfold": "K-Fold Çapraz Doğrulama (K-Fold CV)",
-    "stratified_kfold": "Tabakalı K-Fold (Stratified K-Fold CV)"
+    "holdout": "Eğitim-Test Ayrımı",
+    "kfold": "K-Fold Çapraz Doğrulama",
+    "stratified_kfold": "Tabakalı K-Fold Çapraz Doğrulama"
 }
 
 TUNING_SAMPLER_TR = {
@@ -96,19 +96,34 @@ VIS_GROUP_TITLES_TR = {
     "ano_posttrain_list": "Anomali Tespiti Grafikleri"
 }
 
+PARAM_LABEL_TR = {
+    "with_mean": "Ortalamayı Merkezle",
+    "with_std": "Birim Varyansa Ölçekle",
+    "handle_unknown": "Bilinmeyen Kategorileri Yönet",
+    "drop_invariant": "Varyanssız Sütunları Çıkar",
+    "feature_range": "Özellik Değer Aralığı",
+    "quantile_range": "Çeyreklik Dilim Aralığı",
+    "n_features": "Özellik Sayısı (Hash Boyutu)",
+    "n_hash_features": "Özellik Sayısı (Hash Boyutu)",
+    "n_splits": "Kat Sayısı",
+    "test_size": "Test Kümesi Oranı",
+    "random_state": "Rastgelelik Tohumu",
+    "shuffle": "Veriyi Karıştır",
+}
+
 PARAM_HELP_TR = {
-    "n_features": "Özellik uzayının eşleneceği hash boyutu (çıktı sütun sayısı). Yüksek kardinalite için 1000 - 1000000 aralığında seçilebilir.",
-    "n_hash_features": "Özellik uzayının eşleneceği hash boyutu (çıktı sütun sayısı).",
-    "handle_unknown": "Eğitim kümesinde yer almayan yeni kategorilerle karşılaşıldığında uygulanacak strateji.",
-    "drop_invariant": "Tüm satırlarda tek bir sabit değere sahip varyanssız sütunların otomatik elenmesi.",
-    "with_mean": "Verilerin ortalamasını sıfıra merkezleme. Seyrek matrislerde bellek tasarrufu için False seçilmelidir.",
-    "with_std": "Verileri birim varyansa (standart sapma 1) ölçeklendirme.",
-    "feature_range": "Özelliklerin dönüştürüleceği min-max değer aralığı.",
-    "quantile_range": "Aykırı değerlere karşı dayanıklılık için kullanılan yüzdelik dilim aralığı (IQR).",
-    "random_state": "Rastgele sayı üreteci tohumu (deneyin tekrarlanabilirliği için sabit tam sayı).",
-    "test_size": "Veri kümesinin test/doğrulama için ayrılacak oranı (0.0 - 1.0 arası).",
-    "shuffle": "Bölümleme öncesinde veri satırlarını rastgele karıştır.",
-    "n_splits": "K-Fold çapraz doğrulama için katlama (split) sayısı."
+    "n_features": "n_features — Özellik uzayının eşleneceği hash boyutu (çıktı sütun sayısı).",
+    "n_hash_features": "n_hash_features — Özellik uzayının eşleneceği hash boyutu.",
+    "handle_unknown": "handle_unknown — Eğitim sırasında görülmeyen kategorilerin nasıl ele alınacağını belirler.",
+    "drop_invariant": "drop_invariant — Tüm satırlarda tek bir sabit değere sahip varyanssız sütunların otomatik elenmesi.",
+    "with_mean": "with_mean — StandardScaler uygulanırken değişkenlerin ortalama etrafında merkezlenmesini belirler.",
+    "with_std": "with_std — StandardScaler uygulanırken değişkenlerin standart sapmaya göre ölçeklenmesini belirler.",
+    "feature_range": "feature_range — Özelliklerin dönüştürüleceği min-max değer aralığı.",
+    "quantile_range": "quantile_range — Aykırı değerlere karşı dayanıklılık için kullanılan yüzdelik dilim aralığı (IQR).",
+    "random_state": "random_state — Deneyin tekrarlanabilirliği için rastgele sayı üreteci tohumu.",
+    "test_size": "test_size — Veri kümesinin test/doğrulama için ayrılacak oranı (0.0 - 1.0 arası).",
+    "shuffle": "shuffle — Bölümleme öncesinde veri satırlarını rastgele karıştırır.",
+    "n_splits": "n_splits — K-Fold çapraz doğrulama için kat sayısı."
 }
 
 # ==============================================================================
@@ -419,7 +434,7 @@ if selected_mode == "tune" and tuning_applicable:
 preprocess_payload = None
 
 if learning_type and task and is_config_applicable(capabilities, "preprocess", learning_type, task):
-    with st.expander("🛠️ Önişleme", expanded=False):
+    with st.expander("🛠️ Önişleme Hattı", expanded=False):
         st.caption("Verinizi model eğitimine hazırlamak için eksik değer tamamlama, kategorik kodlama ve sayısal ölçeklendirme adımlarını yapılandırın.")
 
         prep_caps = capabilities.get("preprocessing", {}) if isinstance(capabilities, dict) else {}
@@ -453,7 +468,7 @@ if learning_type and task and is_config_applicable(capabilities, "preprocess", l
             ui_categorical_fill = None
 
             ui_handle_missing = st.checkbox(
-                "Eksik Değerleri Yönet", help="Pipeline parametresi: handle_missing",
+                "Eksik Değerleri Yönet", help="handle_missing — AKSIS önişleme yapılandırmasında eksik değer yönetimini etkinleştirir.",
                 value=bool(prep_defaults.get("handle_missing", True)),
                 key="prep_handle_missing"
             )
@@ -469,7 +484,7 @@ if learning_type and task and is_config_applicable(capabilities, "preprocess", l
                             else 0
                         )
                         ui_numeric_imputer = st.selectbox(
-                            "Sayısal Değer Tamamlama",
+                            "Sayısal Eksik Değer Yöntemi",
                             options=numeric_imputer_methods,
                             index=def_num_idx,
                             format_func=lambda x: PREP_TR.get(x, x),
@@ -489,7 +504,7 @@ if learning_type and task and is_config_applicable(capabilities, "preprocess", l
                         num_fill_def = prep_defaults.get("numeric_fill_value")
                         default_num_str = str(num_fill_def) if num_fill_def is not None else ""
                         raw_num_fill = st.text_input(
-                            "Sayısal Doldurma Değeri",
+                            "Sayısal Sabit Değer",
                             value=default_num_str,
                             key="prep_numeric_fill_value",
                             help="Sayısal tamamlama sabit değerini girin. Boş bırakılırsa atanmaz."
@@ -519,7 +534,7 @@ if learning_type and task and is_config_applicable(capabilities, "preprocess", l
                             else 0
                         )
                         ui_categorical_imputer = st.selectbox(
-                            "Kategorik Değer Tamamlama",
+                            "Kategorik Eksik Değer Yöntemi",
                             options=categorical_imputer_methods,
                             index=def_cat_idx,
                             format_func=lambda x: PREP_TR.get(x, x),
@@ -539,7 +554,7 @@ if learning_type and task and is_config_applicable(capabilities, "preprocess", l
                         cat_fill_def = prep_defaults.get("categorical_fill_value")
                         default_cat_str = str(cat_fill_def) if cat_fill_def is not None else ""
                         raw_cat_fill = st.text_input(
-                            "Kategorik Doldurma Değeri",
+                            "Kategorik Sabit Değer",
                             value=default_cat_str,
                             key="prep_categorical_fill_value",
                             help="Kategorik tamamlama sabit değerini girin. Boş bırakılırsa atanmaz."
@@ -554,7 +569,7 @@ if learning_type and task and is_config_applicable(capabilities, "preprocess", l
             c_e1, c_e2 = st.columns(2)
             with c_e1:
                 ui_encoding = st.checkbox(
-                    "Kategorik Kodlama Etkin", help="Pipeline parametresi: encoding",
+                    "Kategorik Kodlama Etkin", help="encoding — Kategorik sütunların sayısal vektörlere dönüştürülmesini belirler.",
                     value=bool(prep_defaults.get("encoding", False)),
                     key="prep_encoding"
                 )
@@ -575,7 +590,7 @@ if learning_type and task and is_config_applicable(capabilities, "preprocess", l
                     ui_encode_method = def_encode_method
 
                 ui_target_encoding = st.checkbox(
-                    "Hedef Değişken Kodlama", help="Pipeline parametresi: targetEncoding",
+                    "Hedef Değişken Kodlama", help="targetEncoding — Hedef değişken bazlı kodlama stratejisini belirler.",
                     value=bool(prep_defaults.get("targetEncoding", False)),
                     key="prep_target_encoding"
                 )
@@ -601,7 +616,7 @@ if learning_type and task and is_config_applicable(capabilities, "preprocess", l
                         st.caption("Bu yöntem için yapılandırılabilir ek parametre bulunmamaktadır.")
 
                     for p_k, p_v in selected_enc_params.items():
-                        p_label = p_k.replace("_", " ").title()
+                        p_label = PARAM_LABEL_TR.get(p_k, p_k.replace("_", " ").title())
                         field_key = f"prep_enc_{ui_encode_method}_{p_k}"
                         help_text = PARAM_HELP_TR.get(p_k)
                         if isinstance(p_v, bool):
@@ -643,7 +658,7 @@ if learning_type and task and is_config_applicable(capabilities, "preprocess", l
             c_s1, c_s2 = st.columns(2)
             with c_s1:
                 ui_scaling = st.checkbox(
-                    "Sayısal Ölçeklendirme Etkin", help="Pipeline parametresi: scaling",
+                    "Sayısal Ölçeklendirme Etkin", help="scaling — Sayısal özniteliklerin ölçeklendirilmesini belirler.",
                     value=bool(prep_defaults.get("scaling", False)),
                     key="prep_scaling"
                 )
@@ -697,8 +712,8 @@ if learning_type and task and is_config_applicable(capabilities, "preprocess", l
                             options=radio_opts,
                             index=radio_idx,
                             format_func=lambda x: {
-                                "with_std": "Birim Varyans Ölçeklendirme (Önerilen)",
-                                "with_mean": "Ortalama Merkezileştirme",
+                                "with_std": "Birim Varyansa Ölçekle (Önerilen)",
+                                "with_mean": "Ortalamayı Merkezle",
                                 "none": "Hiçbiri"
                             }.get(x, x),
                             key=f"prep_scale_{ui_scale_method}_mutual_radio"
@@ -710,7 +725,7 @@ if learning_type and task and is_config_applicable(capabilities, "preprocess", l
                         if has_mutual_std_mean and p_k in ("with_mean", "with_std"):
                             continue  # Radyo seçimi tarafından yönetildi
 
-                        p_label = p_k.replace("_", " ").title()
+                        p_label = PARAM_LABEL_TR.get(p_k, p_k.replace("_", " ").title())
                         field_key = f"prep_scale_{ui_scale_method}_{p_k}"
                         help_text = PARAM_HELP_TR.get(p_k)
                         if isinstance(p_v, bool):
@@ -805,7 +820,7 @@ if learning_type and task and is_config_applicable(capabilities, "data_split", l
 
         if val_strategy and isinstance(split_params, dict):
             for p_name, p_default in split_params.items():
-                p_label = p_name.replace("_", " ").title()
+                p_label = PARAM_LABEL_TR.get(p_name, p_name.replace("_", " ").title())
                 field_key = f"ds_{val_strategy}_{p_name}"
                 help_text = PARAM_HELP_TR.get(p_name)
 

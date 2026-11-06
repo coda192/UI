@@ -21,8 +21,18 @@ SUMMARY_KEYS_TR = {
     "anomaly_rate": "Anomali Oranı"
 }
 
+METRIC_NAMES_TR = {
+    "accuracy": "Doğruluk",
+    "precision": "Kesinlik",
+    "recall": "Duyarlılık",
+    "f1_score": "F1 Skoru",
+    "f1": "F1 Skoru",
+    "balanced_accuracy": "Dengeli Doğruluk",
+    "roc_auc": "ROC AUC"
+}
+
 TABLE_TITLES_TR = {
-    "confusion_matrix": "Karışıklık Matrisi",
+    "confusion_matrix": "Confusion Matrix",
     "top_anomalies": "En Yüksek Skorlu Anomaliler",
     "anomalous_records": "Tespit Edilen Anomali Kayıtları"
 }
@@ -99,7 +109,8 @@ try:
             cls_metrics = metrics.get("classification_metrics", {})
             mcols = st.columns(4)
             for i, (k, v) in enumerate(cls_metrics.items()):
-                mcols[i % 4].metric(k.upper(), f"{v:.4f}" if isinstance(v, float) else v)
+                lbl = METRIC_NAMES_TR.get(k.lower(), k.upper())
+                mcols[i % 4].metric(lbl, f"{v:.4f}" if isinstance(v, float) else v)
                 
         elif task == "regression":
             st.subheader("Regresyon Hata & Başarı Metrikleri")
@@ -110,13 +121,13 @@ try:
                 
         elif task == "anomaly_detection":
             if has_gt:
-                st.subheader("Etiketli Anomali Metrikleri (Gerçek Etiket)")
+                st.subheader("Etiketli Anomali Metrikleri (Ground Truth)")
                 anom_metrics = metrics.get("anomaly_metrics", {})
                 mcols = st.columns(3)
                 for i, (k, v) in enumerate(anom_metrics.items()):
                     mcols[i % 3].metric(k.upper(), f"{v:.4f}" if isinstance(v, float) else v)
             else:
-                st.info("💡 **Etiketsiz Anomali Tespiti:** Veri setinde gerçek etiket bulunmadığı için denetimli doğruluk ve F1 metrikleri hesaplanmamıştır.")
+                st.info("💡 **Etiketsiz Anomali Tespiti:** Veri setinde Ground Truth bulunmadığı için denetimli değerlendirme metrikleri hesaplanmamıştır.")
                 
         st.header("📈 Görselleştirmeler ve Tablolar")
         
